@@ -1,0 +1,22 @@
+; Quick Start для следующей сессии
+; ================================
+
+; 1. Убить старый процесс
+taskkill /F /IM element.exe 2>nul
+
+; 2. Собрать проект
+"D:\Programms\IDE\FASM\FASM.EXE" D:\Projects\Element\src\main.asm D:\Projects\Element\output\element.exe
+
+; 3. Запустить сервер
+start /B D:\Projects\Element\output\element.exe
+
+; 4. Открыть браузер
+start http://localhost:8080
+
+; 5. Проверить работу
+netstat -ano | findstr :8080
+
+; ================================
+; Проблема: рабочее поле не видно
+; Решение: проверить CSS editor-area и center-panel height
+; ================================
