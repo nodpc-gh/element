@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Element IDE</title>
+<meta http-equiv="Cache-Control" content="no-cache,no-store,must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<style>
+/* Element IDE v2.0 - Modern Dark Theme Styles */
+:root {
+    --bg-primary: #1e1e1e;
+    --bg-secondary: #252526;
+    --bg-tertiary: #2d2d30;
+    --bg-hover: #2a2d2e;
+    --border-color: #3c3c3c;
+    --accent-primary: #007acc;
+    --accent-hover: #0098ff;
+    --accent-success: #0a8;
+    --accent-danger: #f44;
+    --accent-warning: #fa2;
+    --text-primary: #ccc;
+    --text-secondary: #888;
+    --text-bright: #fff;
+}
+* { box-sizing: border-box; }
+html, body {
+    height: 100%; margin: 0; padding: 0; overflow: hidden;
+    font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+    background: var(--bg-primary); color: var(--text-primary); font-size: 13px;
+}
+.container { display: flex; height: 100vh; width: 100vw; }
+.left {
+    width: 220px; min-width: 220px; background: var(--bg-secondary);
+    border-right: 1px solid var(--border-color); overflow-y: auto;
+}
+.panel-header {
+    padding: 12px 15px; background: var(--bg-tertiary); font-weight: 600;
+    font-size: 12px; color: var(--text-bright); border-bottom: 1px solid var(--border-color);
+}
+.tree-group { margin: 2px 0; }
+.tree-item {
+    padding: 8px 12px 8px 25px; cursor: grab; user-select: none;
+    transition: background 0.15s; display: flex; align-items: center; gap: 8px;
+    border-left: 3px solid transparent;
+}
+.tree-item:hover { background: var(--bg-hover); border-left-color: var(--accent-primary); }
+.tree-item .icon { font-size: 16px; opacity: 0.9; }
+.center { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--bg-primary); }
+.toolbar {
+    height: 40px; background: var(--bg-tertiary); display: flex; align-items: center;
+    padding: 0 10px; gap: 4px; border-bottom: 1px solid var(--border-color);
+}
+.toolbar button {
+    background: linear-gradient(180deg, #3c3c3c 0%, #323232 100%);
+    border: 1px solid var(--border-color); color: var(--text-primary);
+    padding: 6px 12px; min-width: 36px; height: 32px; cursor: pointer;
+    border-radius: 3px; font-size: 16px; transition: all 0.15s;
+    display: flex; align-items: center; justify-content: center;
+}
+.toolbar button:hover {
+    background: linear-gradient(180deg, #4a4a4a 0%, #404040 100%);
+    border-color: var(--accent-primary); transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0, 122, 204, 0.3);
+}
+.tabs {
+    height: 32px; background: var(--bg-secondary); display: flex;
+    align-items: flex-end; padding-left: 5px; border-bottom: 1px solid var(--border-color);
+}
+.tab {
+    padding: 6px 20px; background: var(--bg-tertiary);
+    border-right: 1px solid var(--border-color);
+    border-top-left-radius: 4px; border-top-right-radius: 4px;
+    cursor: pointer; font-size: 12px; color: var(--text-secondary); transition: all 0.15s;
+}
+.tab:hover { background: var(--bg-hover); color: var(--text-primary); }
+.tab.active {
+    background: var(--bg-primary); color: var(--text-bright);
+    border-bottom: 2px solid var(--accent-primary);
+}
+.workspace { flex: 1; position: relative; background: var(--bg-primary); overflow: hidden; }
+.status {
+    height: 26px; background: linear-gradient(180deg, var(--accent-primary) 0%, #0066aa 100%);
+    color: var(--text-bright); display: flex; align-items: center;
+    padding: 0 12px; font-size: 11px; border-top: 1px solid var(--border-color);
+}
+.status-right { margin-left: auto; opacity: 0.9; }
+#cvs, #svg, #ec { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+#cvs { z-index: 1; }
+#svg { z-index: 5; pointer-events: none; }
+#ec { z-index: 10; transform-origin: 0 0; }
+.element {
+    position: absolute; min-width: 120px; min-height: 55px;
+    background: linear-gradient(180deg, #323235 0%, #2d2d30 100%);
+    border: 2px solid var(--accent-primary); color: var(--text-primary);
+    cursor: move; user-select: none; font-size: 12px; border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3); transition: box-shadow 0.15s, border-color 0.15s;
+}
+.element:hover { box-shadow: 0 4px 12px rgba(0, 122, 204, 0.25); }
+.element.selected {
+    border-color: #00ccff;
+    box-shadow: 0 0 0 2px rgba(0, 204, 255, 0.3), 0 4px 16px rgba(0, 204, 255, 0.2);
+}
+.el-hdr {
+    padding: 5px 8px; background: linear-gradient(180deg, #404045 0%, #3a3a3d 100%);
+    font-weight: 600; cursor: move; border-bottom: 1px solid var(--border-color);
+    border-radius: 2px 2px 0 0; font-size: 11px;
+}
+.el-body { padding: 6px 8px; }
+.el-data { color: var(--text-secondary); font-size: 10px; margin-bottom: 3px; }
+.el-stats { color: var(--accent-success); font-size: 10px; font-weight: 600; }
+.port {
+    position: absolute; width: 12px; height: 12px; background: #444;
+    border: 2px solid #666; border-radius: 50%; cursor: crosshair; z-index: 10;
+    transition: all 0.15s;
+}
+.port:hover {
+    background: var(--accent-primary); border-color: var(--text-bright);
+    transform: scale(1.2); box-shadow: 0 0 8px rgba(0, 122, 204, 0.6);
+}
+.port.in { border-color: #4a9; }
+.port.in:hover { background: #4a9; }
+.port.out { border-color: #94f; }
+.port.out:hover { background: #94f; }
+.port.pl { left: -6px; top: 50%; margin-top: -6px; }
+.port.pr { right: -6px; top: 50%; margin-top: -6px; }
+.port.pt { left: 50%; top: -6px; margin-left: -6px; }
+.port.pb { left: 50%; bottom: -6px; margin-left: -6px; }
+.port-label { position: absolute; font-size: 9px; color: #666; pointer-events: none; }
+.line {
+    fill: none; stroke: #555; stroke-width: 2; opacity: 0.8;
+    transition: all 0.2s; cursor: pointer; pointer-events: stroke;
+}
+.line:hover { opacity: 1; stroke-width: 4; filter: drop-shadow(0 0 3px currentColor); }
+.line.data { stroke: #0a8; stroke-width: 3; }
+.line.event { stroke: #94f; stroke-width: 2.5; }
+.line.id { stroke: #fa2; stroke-width: 3; stroke-dasharray: 6, 4; }
+.right {
+    width: 280px; min-width: 280px; background: var(--bg-secondary);
+    border-left: 1px solid var(--border-color); overflow-y: auto;
+}
+.prop-section { border-bottom: 1px solid var(--border-color); padding: 10px 0; }
+.section-title {
+    padding: 6px 15px; background: var(--bg-tertiary); font-weight: 600;
+    font-size: 11px; color: var(--text-bright); margin-bottom: 8px;
+}
+.prop-row { display: flex; border-bottom: 1px solid rgba(60, 60, 60, 0.5); font-size: 12px; }
+.prop-row:last-child { border-bottom: none; }
+.prop-name {
+    width: 45%; padding: 6px 12px; background: var(--bg-tertiary);
+    border-right: 1px solid var(--border-color); color: var(--text-secondary); font-weight: 500;
+}
+.prop-value { width: 55%; padding: 4px 8px; background: var(--bg-secondary); }
+.prop-value input {
+    width: 100%; background: #2a2a2a; border: 1px solid var(--border-color);
+    color: var(--text-primary); padding: 4px 6px; border-radius: 2px;
+    font-size: 11px; font-family: inherit;
+}
+.prop-value input:focus { outline: none; border-color: var(--accent-primary); background: #303030; }
+.prop-value input[readonly] { background: #252525; color: var(--text-secondary); cursor: default; }
+#ctx, #ctxLn {
+    position: fixed; display: none; background: var(--bg-tertiary);
+    border: 1px solid var(--border-color); border-radius: 5px;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.5); z-index: 9999;
+    min-width: 180px; font-size: 12px; overflow: hidden;
+}
+.ctx-header {
+    padding: 8px 12px; background: linear-gradient(180deg, #404045 0%, #3a3a3d 100%);
+    font-weight: 600; color: var(--text-bright); font-size: 11px;
+}
+.ctx-header-danger { background: linear-gradient(180deg, #5a2a2a 0%, #4a2020 100%); color: #f88; }
+.ctx-sep { height: 1px; background: var(--border-color); margin: 6px 10px; }
+.ctx-item {
+    padding: 8px 12px; cursor: pointer; transition: background 0.12s;
+    display: flex; align-items: center; gap: 8px;
+}
+.ctx-item:hover { background: var(--accent-primary); color: var(--text-bright); }
+.ctx-item.ctx-danger { color: #f66; }
+.ctx-item.ctx-danger:hover { background: var(--accent-danger); color: var(--text-bright); }
+.port-grid {
+    padding: 12px; display: grid; grid-template-columns: repeat(5, 36px);
+    grid-template-rows: repeat(5, 32px); gap: 4px; justify-content: center; align-items: center;
+}
+.pg-spacer { }
+.pg-center {
+    display: flex; align-items: center; justify-content: center; font-size: 18px;
+    color: var(--text-secondary); background: var(--bg-secondary); border-radius: 4px;
+}
+.btn-plus, .btn-minus {
+    width: 100%; height: 100%; font-size: 18px; font-weight: bold; cursor: pointer;
+    border-radius: 4px; transition: all 0.15s; border: none;
+    display: flex; align-items: center; justify-content: center;
+}
+.btn-plus { background: var(--bg-secondary); border: 1px solid #4a9; color: #4a9; }
+.btn-plus:hover { background: #4a9; color: var(--text-bright); box-shadow: 0 0 10px rgba(68, 170, 136, 0.4); }
+.btn-minus { background: var(--bg-secondary); border: 1px solid #f66; color: #f66; }
+.btn-minus:hover { background: #f66; color: var(--text-bright); box-shadow: 0 0 10px rgba(255, 102, 102, 0.4); }
+#compileModal, #sourceModal {
+    display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    background: var(--bg-tertiary); border: 1px solid var(--border-color);
+    border-radius: 6px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+    z-index: 2000; min-width: 550px; max-width: 85%; max-height: 80vh; overflow: hidden;
+}
+.modal-header {
+    padding: 12px 16px; background: linear-gradient(180deg, #3a3a3d 0%, #323235 100%);
+    border-bottom: 1px solid var(--border-color); display: flex;
+    justify-content: space-between; align-items: center;
+}
+.modal-title { font-weight: 600; color: var(--text-bright); font-size: 13px; }
+.modal-close {
+    background: transparent; border: none; color: var(--text-secondary);
+    cursor: pointer; font-size: 20px; padding: 2px 8px; border-radius: 3px; transition: all 0.15s;
+}
+.modal-close:hover { background: var(--accent-danger); color: var(--text-bright); }
+.modal-body { padding: 16px; max-height: calc(80vh - 60px); overflow-y: auto; }
+.compile-info {
+    margin-bottom: 12px; padding: 8px 12px; background: var(--bg-secondary);
+    border-radius: 4px; font-size: 12px; display: flex; align-items: center; gap: 10px;
+}
+.compile-info b { color: var(--accent-primary); }
+.divider { color: var(--border-color); }
+#compileOutput, #sourceCodeEditor {
+    width: 100%; background: #1a1a1a; border: 1px solid var(--border-color);
+    color: #d4d4d4; font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 12px; padding: 12px; resize: vertical; border-radius: 4px;
+    white-space: pre; overflow-x: auto;
+}
+#compileOutput { height: 280px; color: #0f0; }
+#sourceCodeEditor { height: 350px; line-height: 1.5; }
+#compileOutput:focus, #sourceCodeEditor:focus { outline: none; border-color: var(--accent-primary); }
+.modal-buttons { margin-top: 12px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.modal-buttons button {
+    background: linear-gradient(180deg, var(--accent-primary) 0%, #0066aa 100%);
+    border: none; color: var(--text-bright); cursor: pointer;
+    padding: 8px 16px; border-radius: 4px; font-size: 12px; font-weight: 500;
+    transition: all 0.15s;
+}
+.modal-buttons button:hover { transform: translateY(-1px); box-shadow: 0 3px 10px rgba(0, 122, 204, 0.4); }
+#btnDownloadJson { background: linear-gradient(180deg, #0a8 0%, #008866 100%); }
+#btnSaveSource { background: linear-gradient(180deg, var(--accent-primary) 0%, #0066aa 100%); }
+#btnClearSource { background: linear-gradient(180deg, var(--accent-danger) 0%, #cc3333 100%); }
+.source-status { color: var(--text-secondary); font-size: 11px; margin-left: auto; }
+.source-info {
+    margin-bottom: 12px; padding: 8px 12px; background: var(--bg-secondary);
+    border-radius: 4px; font-size: 12px; display: flex; align-items: center; gap: 10px;
+}
+.source-info b { color: var(--accent-primary); }
+.source-help {
+    margin-top: 16px; padding: 12px; background: var(--bg-secondary);
+    border: 1px solid var(--border-color); border-radius: 4px;
+}
+.source-help b { color: var(--accent-primary); display: block; margin-bottom: 6px; }
+.source-help ul {
+    margin: 0; padding-left: 20px; color: var(--text-secondary);
+    font-size: 11px; line-height: 1.6;
+}
+.source-help code {
+    background: #2a2a2a; padding: 2px 5px; border-radius: 3px;
+    color: #94f; font-family: 'Consolas', monospace; font-size: 10px;
+}
+#overlay {
+    display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(2px); z-index: 1999;
+}
+.select-rect {
+    position: absolute; border: 2px dashed var(--accent-primary);
+    background: rgba(0, 122, 204, 0.15); pointer-events: none; z-index: 9998;
+}
+</style>
+</head>
+<body>
+<div class="container">
+<div class="left">
+<div class="panel-header">📦 Элементы</div>
+<div class="tree-group"><div class="tree-item" draggable="true" data-type="btn"><span class="icon">🔘</span>Button</div></div>
+<div class="tree-group"><div class="tree-item" draggable="true" data-type="lbl"><span class="icon">📝</span>Label</div></div>
+<div class="tree-group"><div class="tree-item" draggable="true" data-type="edt"><span class="icon">✏️</span>Edit</div></div>
+<div class="tree-group"><div class="tree-item" draggable="true" data-type="chk"><span class="icon">☑️</span>CheckBox</div></div>
+<div class="tree-group"><div class="tree-item" draggable="true" data-type="pnl"><span class="icon">📦</span>Panel</div></div>
+</div>
+<div class="center">
+<div class="toolbar">
+<button id="btnOpen" title="Открыть">📂</button>
+<button id="btnSave" title="Сохранить">💾</button>
+<button id="btnCompile" title="Компилятор">⚙️</button>
+<button id="btnSource" title="Код">📝</button>
+<button id="btnRun" title="Запуск">▶️</button>
+<button id="btnStop" title="Стоп">⏹️</button>
+</div>
+<div class="tabs"><div class="tab active">Form1</div></div>
+<div class="workspace" id="ws">
+<canvas id="cvs"></canvas>
+<svg id="svg"></svg>
+<div id="ec"></div>
+</div>
+<div class="status"><span id="st">ROOT</span><span class="status-right">Element IDE v2.0</span></div>
+</div>
+<div class="right">
+<div class="panel-header">🔧 Свойства</div>
+<div class="prop-section">
+<div class="section-title">Элемент</div>
+<div class="prop-row"><div class="prop-name">Name</div><div class="prop-value"><input id="pName" type="text"></div></div>
+<div class="prop-row"><div class="prop-name">Left</div><div class="prop-value"><input id="pLeft" type="number"></div></div>
+<div class="prop-row"><div class="prop-name">Top</div><div class="prop-value"><input id="pTop" type="number"></div></div>
+<div class="prop-row"><div class="prop-name">Width</div><div class="prop-value"><input id="pWidth" type="number"></div></div>
+<div class="prop-row"><div class="prop-name">Height</div><div class="prop-value"><input id="pHeight" type="number"></div></div>
+</div>
+<div class="prop-section">
+<div class="section-title">Данные</div>
+<div class="prop-row"><div class="prop-name">Type</div><div class="prop-value"><input id="pType" type="text" readonly></div></div>
+<div class="prop-row"><div class="prop-name">ID</div><div class="prop-value"><input id="pId" type="text" readonly></div></div>
+</div>
+<div class="prop-section">
+<div class="section-title">Статистика</div>
+<div class="prop-row"><div class="prop-name">Events</div><div class="prop-value"><input id="pEv" type="text" readonly></div></div>
+</div>
+</div>
+</div>
+<div id="ctx">
+<div class="ctx-header" id="ch">Element</div>
+<div class="ctx-sep">Управление портами</div>
+<div class="port-grid">
+<div class="pg-spacer"></div><div class="pg-spacer"></div><button class="btn-plus" data-a="add-pt">+</button><div class="pg-spacer"></div><div class="pg-spacer"></div>
+<div class="pg-spacer"></div><div class="pg-spacer"></div><button class="btn-minus" data-a="del-pt">−</button><div class="pg-spacer"></div><div class="pg-spacer"></div>
+<button class="btn-plus" data-a="add-pl">+</button><button class="btn-minus" data-a="del-pl">−</button><div class="pg-center">⚙</div><button class="btn-minus" data-a="del-pr">−</button><button class="btn-plus" data-a="add-pr">+</button>
+<div class="pg-spacer"></div><div class="pg-spacer"></div><button class="btn-minus" data-a="del-pb">−</button><div class="pg-spacer"></div><div class="pg-spacer"></div>
+<div class="pg-spacer"></div><div class="pg-spacer"></div><button class="btn-plus" data-a="add-pb">+</button><div class="pg-spacer"></div><div class="pg-spacer"></div>
+</div>
+<div class="ctx-sep"></div>
+<div class="ctx-item" data-a="dup">📋 Копировать</div>
+<div class="ctx-item ctx-danger" data-a="del">🗑️ Удалить</div>
+</div>
+<div id="ctxLn">
+<div class="ctx-header ctx-header-danger">Соединение</div>
+<div class="ctx-item ctx-danger" data-a="del-ln">🗑️ Удалить</div>
+<div class="ctx-item" data-a="ln-type">Тип: <span id="lnTypeInfo"></span></div>
+</div>
+<div id="compileModal">
+<div class="modal-header">
+<span class="modal-title">⚙️ Компилятор</span>
+<button id="btnCloseModal" class="modal-close">✕</button>
+</div>
+<div class="modal-body">
+<div class="compile-info"><span>📦 Элементы: <b id="compileElCnt">0</b></span><span class="divider">|</span><span>🔗 Соединения: <b id="compileConnCnt">0</b></span></div>
+<textarea id="compileOutput" spellcheck="false" readonly></textarea>
+<div class="modal-buttons">
+<button id="btnCopyJson">📋 Копировать</button>
+<button id="btnDownloadJson">💾 Скачать</button>
+</div>
+</div>
+</div>
+<div id="sourceModal">
+<div class="modal-header">
+<span class="modal-title">📝 Код элемента</span>
+<button id="btnCloseSource" class="modal-close">✕</button>
+</div>
+<div class="modal-body">
+<div class="source-info"><span><b>Элемент:</b> <span id="sourceElId"></span></span><span class="divider">|</span><span><b>Тип:</b> <span id="sourceElType"></span></span></div>
+<textarea id="sourceCodeEditor" spellcheck="false" placeholder="// Введите код..."></textarea>
+<div class="modal-buttons">
+<button id="btnSaveSource">💾 Сохранить</button>
+<button id="btnClearSource">🗑️ Очистить</button>
+<span id="sourceStatus" class="source-status"></span>
+</div>
+<div class="source-help">
+<b>ℹ️ Как использовать:</b>
+<ul><li>Код выполняется при событии</li><li>Переменные: <code>this</code>, <code>ports</code>, <code>connections</code></li><li>Для отладки: <code>console.log()</code></li></ul>
+</div>
+</div>
+</div>
+<div id="overlay"></div>
+<script src="app.js"></script>
+</body>
+</html>

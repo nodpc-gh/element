@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Element IDE</title>
+<meta http-equiv="Cache-Control" content="no-cache,no-store,must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="container">
+<!-- Левая панель - палитра элементов -->
+<div class="left" id="leftPanel">
+<div class="panel-header">
+<span>⚙ Elements</span>
+<button class="panel-toggle" id="toggleLeft" title="Свернуть/Развернуть">◂</button>
+</div>
+
+<!-- Вкладки категорий -->
+<div class="category-tabs">
+<div class="category-tab active" data-category="system">⚙️ System</div>
+<div class="category-tab" data-category="network">🌐 Network</div>
+<div class="category-tab" data-category="logic">🔷 Logic</div>
+<div class="category-tab" data-category="controls">🎛️ Controls</div>
+</div>
+
+<!-- Контейнер элементов -->
+<div class="elements-container" id="elements-container">
+<!-- System -->
+<div class="elements-grid" id="elementsSystem">
+<!-- Элементы загружаются из API -->
+</div>
+
+<!-- Network -->
+<div class="elements-grid" id="elementsNetwork" style="display:none;">
+<!-- Элементы загружаются из API -->
+</div>
+
+<!-- Logic -->
+<div class="elements-grid" id="elementsLogic" style="display:none;">
+<!-- Элементы загружаются из API -->
+</div>
+
+<!-- Controls -->
+<div class="elements-grid" id="elementsControls" style="display:none;">
+<!-- Элементы загружаются из API -->
+</div>
+</div>
+</div>
+
+<!-- Центральная часть - рабочая область -->
+<div class="center">
+<div class="toolbar">
+<button id="btnDatabase" title="База данных">🗄️</button>
+<button id="btnOpen" title="Открыть">📂</button>
+<button id="btnSave" title="Сохранить">💾</button>
+<button id="btnForm" title="Редактор форм">📐</button>
+<button id="btnCompile" title="Компилятор">⚙️</button>
+<button id="btnSource" title="Код">📝</button>
+<button id="btnImport" title="Импорт проекта">📥</button>
+<button id="btnRun" title="Запуск">▶️</button>
+<button id="btnStop" title="Стоп">⏹️</button>
+<button id="btnCenter" title="Центрировать элементы">🎯</button>
+</div>
+<div class="tabs">
+<div class="tab active">Form1</div>
+</div>
+<div class="workspace" id="ws">
+<canvas id="cvs"></canvas>
+<svg id="svg"></svg>
+<!-- Рабочая область -->
+<div id="ec" class="mode-container active"></div>
+<!-- Редактор форм -->
+<div id="ec-form" class="mode-container"></div>
+</div>
+<!-- Панель консоли -->
+<div class="console-panel" id="consolePanel">
+<div class="console-header">
+<span>📟 Консоль</span>
+<div class="console-controls">
+<button id="btnClearConsole" title="Очистить консоль">🗑️</button>
+<button id="btnToggleConsole" title="Свернуть/Развернуть">▼</button>
+</div>
+</div>
+<div class="console-output" id="consoleOutput"></div>
+<div class="console-input-line">
+<span class="console-prompt">></span>
+<input type="text" id="consoleInput" placeholder="Введите команду..." autocomplete="off">
+</div>
+</div>
+<div class="status">
+<span id="st">el_1</span>
+<span class="status-right">Element IDE v1.0</span>
+</div>
+</div>
+
+<!-- Правая панель - свойства -->
+<div class="right">
+<div class="panel-header">🔧 Свойства</div>
+<div class="prop-section">
+<div class="section-title">Элемент</div>
+<div class="prop-row">
+<div class="prop-name">Name</div>
+<div class="prop-value"><input id="pName" type="text"></div>
+</div>
+<div class="prop-row">
+<div class="prop-name">Left</div>
+<div class="prop-value"><input id="pLeft" type="number"></div>
+</div>
+<div class="prop-row">
+<div class="prop-name">Top</div>
+<div class="prop-value"><input id="pTop" type="number"></div>
+</div>
+<div class="prop-row">
+<div class="prop-name">Width</div>
+<div class="prop-value"><input id="pWidth" type="number"></div>
+</div>
+<div class="prop-row">
+<div class="prop-name">Height</div>
+<div class="prop-value"><input id="pHeight" type="number"></div>
+</div>
+</div>
+<div class="prop-section">
+<div class="section-title">Данные</div>
+<div class="prop-row">
+<div class="prop-name">Type</div>
+<div class="prop-value"><input id="pType" type="text" readonly></div>
+</div>
+<div class="prop-row">
+<div class="prop-name">ID</div>
+<div class="prop-value"><input id="pId" type="text" readonly></div>
+</div>
+</div>
+<div class="prop-section">
+<div class="section-title">Статистика</div>
+<div class="prop-row">
+<div class="prop-name">Events</div>
+<div class="prop-value"><input id="pEv" type="text" readonly></div>
+</div>
+</div>
+<div class="prop-section">
+<div class="section-title">Код</div>
+<div class="prop-row">
+<div class="prop-name">Source</div>
+<div class="prop-value"><button id="btnEditCode" style="width:100%">✏️ Код элемента</button></div>
+</div>
+</div>
+</div>
+
+<!-- Контекстное меню элемента -->
+<div id="ctx">
+<div class="ctx-header" id="ch">Element</div>
+<div class="ctx-sep">Управление портами</div>
+<div class="port-grid">
+<div class="pg-spacer"></div><div class="pg-spacer"></div>
+<button class="btn-plus" data-a="add-pt" title="Добавить порт сверху">+</button>
+<div class="pg-spacer"></div><div class="pg-spacer"></div>
+
+<div class="pg-spacer"></div><div class="pg-spacer"></div>
+<button class="btn-minus" data-a="del-pt" title="Удалить порт сверху">−</button>
+<div class="pg-spacer"></div><div class="pg-spacer"></div>
+
+<button class="btn-plus" data-a="add-pl" title="Добавить порт слева">+</button>
+<button class="btn-minus" data-a="del-pl" title="Удалить порт слева">−</button>
+<div class="pg-center">⚙</div>
+<button class="btn-minus" data-a="del-pr" title="Удалить порт справа">−</button>
+<button class="btn-plus" data-a="add-pr" title="Добавить порт справа">+</button>
+
+<div class="pg-spacer"></div><div class="pg-spacer"></div>
+<button class="btn-minus" data-a="del-pb" title="Удалить порт снизу">−</button>
+<div class="pg-spacer"></div><div class="pg-spacer"></div>
+
+<div class="pg-spacer"></div><div class="pg-spacer"></div>
+<button class="btn-plus" data-a="add-pb" title="Добавить порт снизу">+</button>
+<div class="pg-spacer"></div><div class="pg-spacer"></div>
+</div>
+<div class="ctx-sep"></div>
+<div class="ctx-item" data-a="dup">📋 Копировать</div>
+<div class="ctx-item ctx-danger" data-a="del">🗑️ Удалить элемент</div>
+</div>
+
+<!-- Контекстное меню соединения -->
+<div id="ctxLn">
+<div class="ctx-header ctx-header-danger">Соединение</div>
+<div class="ctx-item ctx-danger" data-a="del-ln">🗑️ Удалить</div>
+<div class="ctx-item" data-a="ln-type">Тип: <span id="lnTypeInfo"></span></div>
+</div>
+
+<!-- Модальное окно компилятора -->
+<div id="compileModal">
+<div class="modal-header">
+<span class="modal-title">⚙️ Компилятор</span>
+<button id="btnCloseModal" class="modal-close">✕</button>
+</div>
+<div class="modal-body">
+<div class="compile-info">
+<span>📦 Элементы: <b id="compileElCnt">0</b></span>
+<span class="divider">|</span>
+<span>🔗 Соединения: <b id="compileConnCnt">0</b></span>
+</div>
+<textarea id="compileOutput" spellcheck="false" readonly></textarea>
+<div class="modal-buttons">
+<button id="btnCopyJson">📋 Копировать</button>
+<button id="btnDownloadJson">💾 Скачать</button>
+</div>
+</div>
+</div>
+
+<!-- Модальное окно редактора кода -->
+<div id="sourceModal">
+<div class="modal-header">
+<span class="modal-title">📝 Код элемента</span>
+<button id="btnCloseSource" class="modal-close">✕</button>
+</div>
+<div class="modal-body">
+<div class="source-info">
+<span><b>Элемент:</b> <span id="sourceElId"></span></span>
+<span class="divider">|</span>
+<span><b>Тип:</b> <span id="sourceElType"></span></span>
+</div>
+<div class="source-editor-container">
+<div style="position:relative;flex:1;min-height:400px;border:1px solid var(--border-color);border-radius:2px;">
+<textarea id="sourceCodeEditor" spellcheck="false" placeholder="// Введите код на FASM..." style="width:100%;height:100%;background:transparent;border:none;color:transparent;font-family:'Consolas','Courier New',monospace;font-size:12px;padding:10px;resize:none;white-space:pre;overflow:auto;position:absolute;z-index:2;caret-color:#fff;top:0;left:0;"></textarea>
+<div id="sourceCodeHighlight" style="position:absolute;top:0;left:0;width:100%;height:100%;background:#1e1e1e;color:#d4d4d4;font-family:'Consolas','Courier New',monospace;font-size:12px;padding:10px;white-space:pre;overflow:hidden;pointer-events:none;z-index:1;"></div>
+</div>
+</div>
+<div class="modal-buttons">
+<button id="btnSaveSource">💾 Сохранить</button>
+<button id="btnClearSource">🗑️ Очистить</button>
+<button id="btnGenerateTemplate">📝 Шаблон</button>
+<span id="sourceStatus" class="source-status"></span>
+</div>
+<div class="source-help">
+<b>ℹ️ Как использовать:</b>
+<ul>
+<li>Код выполняется при событии</li>
+<li>Переменные: <code>this</code>, <code>ports</code>, <code>connections</code></li>
+<li>Для отладки: <code>console.log()</code></li>
+</ul>
+</div>
+</div>
+</div>
+
+<!-- Модальное окно базы данных -->
+<div id="databaseModal">
+<div class="modal-header">
+<span class="modal-title">🗄️ База данных элементов</span>
+<button id="btnCloseDatabase" class="modal-close">✕</button>
+</div>
+<div class="modal-body">
+<div class="db-tabs">
+<div class="db-tab active" data-view="elements">📋 Элементы</div>
+<div class="db-tab" data-view="categories">📁 Категории</div>
+<div class="db-tab" data-view="structure">🔧 Структура</div>
+</div>
+<div class="db-toolbar">
+<div class="db-search-box">
+<input type="text" id="dbSearch" placeholder="🔍 Поиск элементов...">
+</div>
+<span class="db-count">Всего: <b id="dbElementCount">0</b></span>
+</div>
+<div class="db-content">
+<div class="db-table-container" id="dbElementsView">
+<table class="db-table">
+<thead>
+<tr>
+<th>Icon</th>
+<th>Название</th>
+<th>Тип</th>
+<th>Категория</th>
+<th>Порты</th>
+<th>Код</th>
+</tr>
+</thead>
+<tbody id="dbElementsBody">
+<!-- Элементы загружаются из API -->
+</tbody>
+</table>
+</div>
+<div class="db-table-container" id="dbCategoriesView" style="display:none;">
+<div class="db-categories" id="dbCategoriesList">
+<!-- Категории загружаются из API -->
+</div>
+</div>
+<div class="db-table-container" id="dbStructureView" style="display:none;">
+<div class="db-structure">
+<pre id="dbStructureJson"></pre>
+</div>
+</div>
+<div class="db-details" id="dbElementDetails">
+<!-- Детали элемента -->
+</div>
+</div>
+</div>
+</div>
+
+<!-- Затемнение фона -->
+<div id="overlay"></div>
+
+<script src="fasm_highlight.js"></script>
+<script src="element_templates.js"></script>
+<script src="elements.js"></script>
+<script src="compiler.js"></script>
+<script src="database.js"></script>
+<script src="app.js"></script>
+<script src="console.js"></script>
+<script src="source_editor.js"></script>
+</body>
+</html>

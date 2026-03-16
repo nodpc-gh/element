@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Load Project - Element IDE</title>
+<style>
+body {
+    font-family: 'Segoe UI', sans-serif;
+    background: #1e1e1e;
+    color: #ccc;
+    padding: 40px;
+    text-align: center;
+}
+button {
+    background: #007acc;
+    color: white;
+    border: none;
+    padding: 15px 30px;
+    font-size: 16px;
+    cursor: pointer;
+    border-radius: 4px;
+    margin: 10px;
+}
+button:hover {
+    background: #0098e6;
+}
+#status {
+    margin-top: 20px;
+    padding: 10px;
+    border-radius: 4px;
+}
+.success { background: #2d501d; color: #8fca42; }
+.error { background: #501d1d; color: #ca4242; }
+</style>
+</head>
+<body>
+<h1>📥 Загрузка проекта</h1>
+<p>Загрузка example_project.json...</p>
+<div id="status"></div>
+
+<script>
+function loadProject() {
+    fetch('example_project.json')
+        .then(function(response) {
+            if (!response.ok) {
+                throw new Error('HTTP ' + response.status);
+            }
+            return response.json();
+        })
+        .then(function(project) {
+            // Сохраняем проект в localStorage
+            localStorage.setItem('element_project_to_load', JSON.stringify(project));
+            
+            document.getElementById('status').className = 'success';
+            document.getElementById('status').innerHTML = '✅ Проект загружен! Откройте Element IDE и нажмите Ctrl+L';
+            
+            // Перенаправляем на главную страницу через 2 секунды
+            setTimeout(function() {
+                window.location.href = '/';
+            }, 2000);
+        })
+        .catch(function(err) {
+            document.getElementById('status').className = 'error';
+            document.getElementById('status').innerHTML = '❌ Ошибка: ' + err.message;
+        });
+}
+
+// Загружаем проект при открытии страницы
+loadProject();
+</script>
+</body>
+</html>
