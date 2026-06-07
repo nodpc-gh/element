@@ -37,6 +37,7 @@ function useFallbackElements() {
     elementsData = [
         {id:'console',name:'Console',category:'system',icon:'C',type:'console'},
         {id:'service',name:'Service',category:'system',icon:'S',type:'service'},
+        {id:'opencode',name:'OpenCode',category:'system',icon:'🤖',type:'opencode'},
         {id:'http_server',name:'HTTP Server',category:'network',icon:'H',type:'http_server'},
         {id:'tcp_server',name:'TCP Server',category:'network',icon:'T',type:'tcp_server'},
         {id:'and_gate',name:'AND',category:'logic',icon:'A',type:'and_gate'},

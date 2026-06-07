@@ -55,6 +55,7 @@ function useFallbackDatabase() {
         elements: [
             {id:'comp_console',name:'Console',category:'system',icon:'C',type:'console'},
             {id:'comp_service',name:'Service',category:'system',icon:'S',type:'service'},
+            {id:'comp_opencode',name:'OpenCode',category:'system',icon:'🤖',type:'opencode'},
             {id:'comp_http_server',name:'HTTP Server',category:'network',icon:'H',type:'http_server'},
             {id:'comp_tcp_server',name:'TCP Server',category:'network',icon:'T',type:'tcp_server'},
             {id:'comp_and',name:'AND',category:'logic',icon:'A',type:'and_gate'},

@@ -1,0 +1,42 @@
+{
+  "version": "2.0",
+  "elements": [
+    {
+      "id": "el_1",
+      "type": "btn",
+      "caption": "Button",
+      "x": 100,
+      "y": 150,
+      "ev": 0,
+      "code": "; Button Element\ninvoke CreateWindow, 0, BUTTON, 0",
+      "ports": [
+        {"pos": "pl", "type": "in", "id": "el_1_port_pl_0"},
+        {"pos": "pr", "type": "out", "id": "el_1_port_pr_0"},
+        {"pos": "pt", "type": "id", "id": "el_1_port_pt_0"},
+        {"pos": "pb", "type": "data", "id": "el_1_port_pb_0"}
+      ]
+    },
+    {
+      "id": "el_2",
+      "type": "lbl",
+      "caption": "Label",
+      "x": 250,
+      "y": 150,
+      "ev": 0,
+      "code": "; Label Element\ninvoke CreateWindow, 0, STATIC, 0",
+      "ports": [
+        {"pos": "pl", "type": "in", "id": "el_2_port_pl_0"},
+        {"pos": "pr", "type": "out", "id": "el_2_port_pr_0"},
+        {"pos": "pt", "type": "id", "id": "el_2_port_pt_0"},
+        {"pos": "pb", "type": "data", "id": "el_2_port_pb_0"}
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "el_1_port_pr_0",
+      "to": "el_2_port_pl_0",
+      "type": "event"
+    }
+  ]
+}

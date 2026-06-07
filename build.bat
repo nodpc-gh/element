@@ -5,7 +5,7 @@ echo   Element IDE Build Script
 echo ==================================
 echo.
 
-cd /d "%~dp0src"
+cd /d "%~dp0src_v2"
 
 if not exist "fasm.exe" (
     echo FASM not found in current folder
@@ -19,8 +19,8 @@ if not exist "fasm.exe" (
     )
 )
 
-echo Building main.asm...
-fasm main.asm ..\output\element.exe
+echo Building main_server.asm (v2 with DB support)...
+fasm main_server.asm ..\output\element.exe
 
 if errorlevel 1 (
     echo Build failed!

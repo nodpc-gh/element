@@ -87,6 +87,26 @@ function error(message) { log(message, 'error'); }
 function success(message) { log(message, 'success'); }
 function command(message) { log(message, 'command'); }
 
+// Активная оболочка — отображает действия как команды
+function cmd(operation, details) {
+    if (!consoleOutput) return;
+
+    var entry = document.createElement('div');
+    entry.className = 'log-entry log-cmd';
+
+    var timestamp = new Date().toLocaleTimeString();
+    var msg = '[' + timestamp + '] <span class="cmd-prompt">$</span> <span class="cmd-op">' + operation + '</span>';
+
+    if (details) {
+        msg += ' <span class="cmd-args">' + details + '</span>';
+    }
+
+    entry.innerHTML = msg;
+
+    consoleOutput.appendChild(entry);
+    consoleOutput.scrollTop = consoleOutput.scrollHeight;
+}
+
 // ===== ОЧИСТКА =====
 function clear() {
     if (consoleOutput) {
@@ -349,6 +369,7 @@ window.Console = {
     error: error,
     success: success,
     command: command,
+    cmd: cmd,
     clear: clear,
     execute: executeCommand
 };

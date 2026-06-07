@@ -125,9 +125,6 @@ var panX = 0, panY = 0,
     selectedElements = [],
     selectedLine = null;  // Выделенная линия
 
-// Оптимизация рендеринга линий
-var linesUpdatePending = false;
-
 // ===== РАЗМЕР И СЕТКА =====
 function resize() {
     var w = ws.clientWidth, h = ws.clientHeight;
@@ -353,7 +350,7 @@ ecForm.ondrop = function(e) { handleDrop(e, ecForm); };
 function mkEl(type, x, y) {
     // В режиме редактора форм разрешены только контролы
     if (formEditorMode) {
-        var allowedControls = ['btn', 'lbl', 'edt', 'chk', 'pnl', 'console'];
+        var allowedControls = ['btn', 'lbl', 'edt', 'chk', 'pnl', 'console', 'opencode'];
         if (allowedControls.indexOf(type) === -1) {
             alert('Элемент "' + type + '" недоступен в режиме редактора форм.\nПереключитесь в рабочий режим для размещения этого элемента.');
             return;
@@ -449,6 +446,15 @@ function mkEl(type, x, y) {
         elControl.textContent = '';
         elControl.style.justifyContent = 'flex-start';
         elControl.style.alignItems = 'flex-start';
+    } else if (type === 'opencode') {
+        elControl.textContent = '';
+        elControl.style.justifyContent = 'flex-start';
+        elControl.style.alignItems = 'flex-start';
+        elControl.style.background = '#1a1a2e';
+        elControl.style.border = '2px solid #e94560';
+        elControl.style.color = '#00ff88';
+        elControl.style.fontFamily = 'Consolas, monospace';
+        elControl.innerHTML = '<div style="padding:4px;font-size:10px;">🤖 OpenCode Agent</div>';
     } else {
         elControl.textContent = caption;
     }
@@ -464,6 +470,10 @@ function mkEl(type, x, y) {
 
     sel(elWorkspace);
     updProps(elWorkspace);
+
+    if (window.Console) {
+        window.Console.cmd('mkEl', type + ' ' + baseId + ' at (' + x + ', ' + y + ')');
+    }
 }
 
 function getPortLabel(pos) {
@@ -626,21 +636,12 @@ function onElMove(e) {
     if (formEditorMode) {
         dragEl.style.left = (e.clientX - r.left - offX) + 'px';
         dragEl.style.top = (e.clientY - r.top - offY) + 'px';
-        // Синхронизируем с контролом в форме
         syncElementPosition(baseId, dragEl.style.left, dragEl.style.top);
     } else {
         dragEl.style.left = (e.clientX - r.left - panX - offX) + 'px';
         dragEl.style.top = (e.clientY - r.top - panY - offY) + 'px';
-        // Синхронизируем с контролом в форме
         syncElementPosition(baseId, dragEl.style.left, dragEl.style.top);
-        // Оптимизация: используем requestAnimationFrame вместо прямого вызова
-        if (!linesUpdatePending) {
-            linesUpdatePending = true;
-            requestAnimationFrame(function() {
-                updLines();
-                linesUpdatePending = false;
-            });
-        }
+        updLines();
     }
 }
 
@@ -662,6 +663,12 @@ function syncElementPosition(baseId, left, top) {
 }
 
 function onElUp(e) {
+    if (dragEl && window.Console) {
+        var baseId = dragEl.getAttribute('data-base-id');
+        var x = parseInt(dragEl.style.left) || 0;
+        var y = parseInt(dragEl.style.top) || 0;
+        window.Console.cmd('mvEl', (baseId || dragEl.id) + ' to (' + x + ', ' + y + ')');
+    }
     dragEl = null;
     document.onmousemove = null;
     document.onmouseup = null;
@@ -800,6 +807,20 @@ function mkConn(from, to) {
         e.preventDefault();
         delLine(ln);
     };
+    // Контекстное меню линии
+    ln.oncontextmenu = function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        ctxLnT = ln;
+        var cn = conns.find(function(c) { return c.line === ln; });
+        if (cn && ctxLn) {
+            ctxLn.style.left = e.clientX + 'px';
+            ctxLn.style.top = e.clientY + 'px';
+            ctxLn.style.display = 'block';
+            lnTypeInfo.textContent = cn.type;
+        }
+        document.onclick = hideCtxAll;
+    };
     svg.appendChild(ln);
 
     var cn = {
@@ -817,6 +838,12 @@ function mkConn(from, to) {
     to.classList.add('connected');
     updLines();
 
+    if (window.Console) {
+        var fromId = from.getAttribute('data-port-id') || from.className;
+        var toId = to.getAttribute('data-port-id') || to.className;
+        window.Console.cmd('conn', fromId + ' -> ' + toId + ' (' + (cn.type || 'event') + ')');
+    }
+
     var fEv = from.closest('.element');
     if (fEv) {
         var n = parseInt(fEv.getAttribute('data-ev') || 0) + 1;
@@ -826,13 +853,46 @@ function mkConn(from, to) {
 }
 
 // ===== ОБНОВЛЕНИЕ ЛИНИЙ =====
+function portCenter(port) {
+    var el = port.closest('.element');
+    if (!el) return { x: 0, y: 0 };
+
+    var elLeft = parseInt(el.style.left) || 0;
+    var elTop = parseInt(el.style.top) || 0;
+    var elW = el.offsetWidth || parseInt(el.style.minWidth) || 100;
+    var elH = el.offsetHeight || parseInt(el.style.minHeight) || 60;
+
+    var isPl = port.classList.contains('pl');
+    var isPr = port.classList.contains('pr');
+    var isPt = port.classList.contains('pt');
+    var isPb = port.classList.contains('pb');
+
+    // Port size: 8px + 2*2px border = 12px; center offset = 6
+    var portHalf = 6;
+
+    if (isPl) {
+        var pTop = parseInt(port.style.top) || 0;
+        return { x: elLeft + 2, y: elTop + pTop + portHalf };
+    }
+    if (isPr) {
+        var pTop = parseInt(port.style.top) || 0;
+        return { x: elLeft + elW - 2, y: elTop + pTop + portHalf };
+    }
+    if (isPt) {
+        var pLeft = parseInt(port.style.left) || 0;
+        return { x: elLeft + pLeft + portHalf, y: elTop + 2 };
+    }
+    if (isPb) {
+        var pLeft = parseInt(port.style.left) || 0;
+        return { x: elLeft + pLeft + portHalf, y: elTop + elH - 2 };
+    }
+
+    return { x: elLeft, y: elTop };
+}
+
 function updLines() {
-    // Используем window.conns вместо локальной переменной
     var connections = window.conns || conns;
-    
-    var ec = document.getElementById('ec');
-    var ecRect = ec.getBoundingClientRect();
-    
+
     connections.forEach(function(cn) {
         var fromPort = cn.from,
             toPort = cn.to;
@@ -841,14 +901,11 @@ function updLines() {
             return;
         }
 
-        // Используем getBoundingClientRect с учётом ec
-        var p1 = fromPort.getBoundingClientRect();
-        var p2 = toPort.getBoundingClientRect();
-        
-        var x1 = p1.left + p1.width / 2 - ecRect.left,
-            y1 = p1.top + p1.height / 2 - ecRect.top,
-            x2 = p2.left + p2.width / 2 - ecRect.left,
-            y2 = p2.top + p2.height / 2 - ecRect.top;
+        var p1 = portCenter(fromPort);
+        var p2 = portCenter(toPort);
+
+        var x1 = p1.x, y1 = p1.y,
+            x2 = p2.x, y2 = p2.y;
 
         var pos1 = fromPort.className.indexOf('pl') >= 0 ? 'l' :
                    fromPort.className.indexOf('pr') >= 0 ? 'r' :
@@ -864,7 +921,6 @@ function updLines() {
         if (pos2 === 'l') { sx2 -= out; } else if (pos2 === 'r') { sx2 += out; }
         else if (pos2 === 't') { sy2 -= out; } else if (pos2 === 'b') { sy2 += out; }
 
-        // Прямоугольный маршрут
         var path = 'M' + x1 + ',' + y1 + ' L' + sx1 + ',' + sy1;
         var midX = (sx1 + sx2) / 2, midY = (sy1 + sy2) / 2;
 
@@ -882,8 +938,7 @@ function updLines() {
 
         if (cn.line) { cn.line.setAttribute('d', path); }
     });
-    
-    // Синхронизируем window.conns
+
     window.conns = connections;
 }
 
@@ -922,8 +977,9 @@ function onPortCtx(e) {
 function onLineCtx(e) {
     e.preventDefault();
     e.stopPropagation();
-    ctxLnT = this;
-    var cn = conns.find(function(c) { return c.line === this; });
+    var line = this;
+    ctxLnT = line;
+    var cn = conns.find(function(c) { return c.line === line; });
     if (cn && ctxLn) {
         ctxLn.style.left = e.clientX + 'px';
         ctxLn.style.top = e.clientY + 'px';
@@ -946,14 +1002,15 @@ ctx.onclick = function(e) {
     e.stopPropagation();
     if (e.target.className.indexOf('btn-plus') >= 0 || e.target.className.indexOf('btn-minus') >= 0) {
         var a = e.target.getAttribute('data-a');
-        if (a === 'add-pl') { addPort(ctxT, 'pl', 'in'); }
-        if (a === 'add-pt') { addPort(ctxT, 'pt', 'in'); }
-        if (a === 'add-pr') { addPort(ctxT, 'pr', 'out'); }
-        if (a === 'add-pb') { addPort(ctxT, 'pb', 'out'); }
-        if (a === 'del-pl') { delPortByPos(ctxT, 'pl'); }
-        if (a === 'del-pt') { delPortByPos(ctxT, 'pt'); }
-        if (a === 'del-pr') { delPortByPos(ctxT, 'pr'); }
-        if (a === 'del-pb') { delPortByPos(ctxT, 'pb'); }
+        var elId = ctxT && (ctxT.getAttribute('data-base-id') || ctxT.id);
+        if (a === 'add-pl') { addPort(ctxT, 'pl', 'in'); if (window.Console) window.Console.cmd('addPort', elId + ' pl'); }
+        if (a === 'add-pt') { addPort(ctxT, 'pt', 'in'); if (window.Console) window.Console.cmd('addPort', elId + ' pt'); }
+        if (a === 'add-pr') { addPort(ctxT, 'pr', 'out'); if (window.Console) window.Console.cmd('addPort', elId + ' pr'); }
+        if (a === 'add-pb') { addPort(ctxT, 'pb', 'out'); if (window.Console) window.Console.cmd('addPort', elId + ' pb'); }
+        if (a === 'del-pl') { delPortByPos(ctxT, 'pl'); if (window.Console) window.Console.cmd('delPort', elId + ' pl'); }
+        if (a === 'del-pt') { delPortByPos(ctxT, 'pt'); if (window.Console) window.Console.cmd('delPort', elId + ' pt'); }
+        if (a === 'del-pr') { delPortByPos(ctxT, 'pr'); if (window.Console) window.Console.cmd('delPort', elId + ' pr'); }
+        if (a === 'del-pb') { delPortByPos(ctxT, 'pb'); if (window.Console) window.Console.cmd('delPort', elId + ' pb'); }
         hideCtx();
     }
     if (e.target.className.indexOf('ctx-item') >= 0) {
@@ -1013,12 +1070,20 @@ function delEl(el) {
     }
 
     sel(null);
+
+    if (window.Console) {
+        window.Console.cmd('delEl', (baseId || el.id) + ' removed');
+    }
 }
 
 function dupEl(el) {
     var x = parseInt(el.style.left) || 0,
         y = parseInt(el.style.top) || 0;
-    mkEl(el.getAttribute('data-type'), x + 20, y + 20);
+    var type = el.getAttribute('data-type');
+    if (window.Console) {
+        window.Console.cmd('dupEl', type + ' from (' + x + ', ' + y + ')');
+    }
+    mkEl(type, x + 20, y + 20);
 }
 
 function delPort(p) {
@@ -1045,15 +1110,20 @@ function delLine(ln) {
     var idx = conns.findIndex(function(c) { return c.line === ln; });
     if (idx >= 0) {
         var cn = conns[idx];
+        var fromId = cn.fromId || '?';
+        var toId = cn.toId || '?';
         cn.from.classList.remove('connected');
         cn.to.classList.remove('connected');
-        // Сбрасываем выделение
         if (selectedLine === ln) {
             selectedLine = null;
         }
         if (ln.parentNode) ln.parentNode.removeChild(ln);
         conns.splice(idx, 1);
-        window.conns = conns; // Обновляем глобальную переменную
+        window.conns = conns;
+
+        if (window.Console) {
+            window.Console.cmd('delConn', cn.id + ' (' + fromId + ' -> ' + toId + ')');
+        }
     }
 }
 
@@ -1086,6 +1156,8 @@ function updProps(el) {
             btnEditCode.style.borderColor = 'var(--border-color)';
         }
     }
+
+    updPortInfo(el);
 }
 
 // ===== ИЗМЕНЕНИЕ СВОЙСТВ =====
@@ -1093,9 +1165,13 @@ function updProps(el) {
 document.getElementById('pName').onchange = function() {
     var el = selEl;
     if (!el) return;
+    var old = el.getAttribute('data-caption');
     el.setAttribute('data-caption', this.value);
     var hdr = el.querySelector('.el-hdr');
     if (hdr) hdr.textContent = this.value;
+    if (window.Console) {
+        window.Console.cmd('setProp', el.id + ' caption "' + (old || '') + '" -> "' + this.value + '"');
+    }
 };
 
 // Left
@@ -1103,6 +1179,9 @@ document.getElementById('pLeft').onchange = function() {
     var el = selEl;
     if (!el) return;
     el.style.left = this.value + 'px';
+    if (window.Console) {
+        window.Console.cmd('setProp', el.id + ' left = ' + this.value);
+    }
 };
 
 // Top
@@ -1110,6 +1189,9 @@ document.getElementById('pTop').onchange = function() {
     var el = selEl;
     if (!el) return;
     el.style.top = this.value + 'px';
+    if (window.Console) {
+        window.Console.cmd('setProp', el.id + ' top = ' + this.value);
+    }
 };
 
 // Width
@@ -1118,6 +1200,9 @@ document.getElementById('pWidth').onchange = function() {
     if (!el) return;
     el.style.minWidth = this.value + 'px';
     el.style.width = this.value + 'px';
+    if (window.Console) {
+        window.Console.cmd('setProp', el.id + ' width = ' + this.value);
+    }
 };
 
 // Height
@@ -1126,6 +1211,9 @@ document.getElementById('pHeight').onchange = function() {
     if (!el) return;
     el.style.minHeight = this.value + 'px';
     el.style.height = this.value + 'px';
+    if (window.Console) {
+        window.Console.cmd('setProp', el.id + ' height = ' + this.value);
+    }
 };
 
 function clrProps() {
@@ -1137,6 +1225,49 @@ function clrProps() {
     document.getElementById('pType').value = '';
     document.getElementById('pId').value = '';
     document.getElementById('pEv').value = '';
+    clrPortInfo();
+}
+
+// ===== ПОРТЫ (инфо в панели свойств) =====
+var PORT_DESC = {
+    pl: { label: 'in', cls: 'in',    desc: 'Вход — принимает вызовы и сигналы' },
+    pr: { label: 'out',cls: 'out',   desc: 'Выход — исходящие события и данные' },
+    pt: { label: 'id', cls: 'id',     desc: 'Идентификатор — ключи и ссылки' },
+    pb: { label: 'data',cls: 'data',  desc: 'Свойство — конфигурация и состояние' }
+};
+
+function updPortInfo(el) {
+    var cont = document.getElementById('portInfoList');
+    if (!cont) return;
+    var ports = el.querySelectorAll('.port');
+    if (ports.length === 0) {
+        cont.innerHTML = '<div class="port-info-item" style="color:var(--text-dim);font-size:10px;padding:8px 12px;">Нет портов</div>';
+        return;
+    }
+    var html = '';
+    ports.forEach(function(p) {
+        var cls = p.className;
+        var type = 'pl';
+        if (cls.indexOf('pr') >= 0) type = 'pr';
+        else if (cls.indexOf('pt') >= 0) type = 'pt';
+        else if (cls.indexOf('pb') >= 0) type = 'pb';
+        var info = PORT_DESC[type] || { label: '?', cls: 'in', desc: 'Неизвестный тип' };
+        var portId = p.getAttribute('data-port') || p.getAttribute('data-port-id') || '?';
+        var connected = p.classList.contains('connected');
+        html += '<div class="port-info-item">'
+            + '<span class="port-badge ' + info.cls + '">' + info.label + '</span>'
+            + '<span class="port-label">' + portId + '</span>'
+            + '<span class="port-desc">' + info.desc + '</span>'
+            + '<span class="port-connected ' + (connected ? 'yes' : 'no') + '">'
+            + (connected ? '✓' : '○') + '</span>'
+            + '</div>';
+    });
+    cont.innerHTML = html;
+}
+
+function clrPortInfo() {
+    var cont = document.getElementById('portInfoList');
+    if (cont) cont.innerHTML = '';
 }
 
 cvs.onclick = function() {
@@ -1188,6 +1319,9 @@ document.getElementById('btnCompile').onclick = function() {
     compileConnCnt.textContent = project.connections.length;
     compileModal.style.display = 'block';
     overlay.style.display = 'block';
+    if (window.Console) {
+        window.Console.cmd('compile', project.elements.length + ' elements, ' + project.connections.length + ' connections');
+    }
 };
 
 document.getElementById('btnCloseModal').onclick = function() {
@@ -1426,6 +1560,9 @@ document.getElementById('btnSaveSource').onclick = function() {
     var code = sourceCodeEditor.value;
     currentSourceEl.setAttribute('data-code', code);
     sourceStatus.textContent = '✅ Код сохранён!';
+    if (window.Console) {
+        window.Console.cmd('setCode', currentSourceEl.id + ' (' + code.length + ' chars)');
+    }
     setTimeout(function() { sourceStatus.textContent = ''; }, 2000);
 };
 

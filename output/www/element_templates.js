@@ -109,6 +109,24 @@ var elementTemplates = {
         jsCode: '// Console Element\n// Консоль вывода\n\nvar consoleDiv = document.createElement("div");\nconsoleDiv.style.background = "#1e1e1e";\nconsoleDiv.style.color = "#00ff00";\nconsoleDiv.style.fontFamily = "Consolas, monospace";\nconsoleDiv.style.fontSize = "12px";\nconsoleDiv.style.padding = "10px";\nconsoleDiv.style.height = "100%";\nconsoleDiv.style.overflow = "auto";\nconsoleDiv.style.whiteSpace = "pre-wrap";\n\nwindow.consoleOutput = function(msg) {\n    consoleDiv.textContent += msg + "\\n";\n    consoleDiv.scrollTop = consoleDiv.scrollHeight;\n};\n\nelement.appendChild(consoleDiv);',
         htmlTemplate: '<div class="visual-element visual-console"></div>'
     },
+
+    // ===== OPENCODE =====
+    'opencode': {
+        caption: 'OpenCode',
+        ports: ['pl', 'pr', 'pt', 'pb'],
+        width: 280,
+        height: 180,
+        backgroundColor: '#1a1a2e',
+        borderColor: '#e94560',
+        color: '#0f3460',
+        properties: {
+            'Agent': 'opencode',
+            'Model': 'big-pickle',
+            'Status': 'idle'
+        },
+        jsCode: '// OpenCode Agent Element\n// AI-агент для выполнения задач\n\nvar terminal = document.createElement("div");\nterminal.style.background = "#0d0d1a";\nterminal.style.color = "#00ff88";\nterminal.style.fontFamily = "Consolas, monospace";\nterminal.style.fontSize = "11px";\nterminal.style.padding = "8px";\nterminal.style.height = "100%";\nterminal.style.overflow = "auto";\nterminal.style.whiteSpace = "pre-wrap";\nterminal.style.border = "1px solid #e94560";\nterminal.style.borderRadius = "4px";\nterminal.textContent = "> OpenCode Agent ready\\n> Type a task or connect ports\\n";\n\nwindow.opencodeOutput = function(msg) {\n    terminal.textContent += "> " + msg + "\\n";\n    terminal.scrollTop = terminal.scrollHeight;\n};\n\nelement.appendChild(terminal);\n\n// Прослушивание входящих портов\nelement.addEventListener("port_in", function(data) {\n    terminal.textContent += "> received: " + JSON.stringify(data) + "\\n";\n});',
+        htmlTemplate: '<div class="visual-element visual-opencode"><div class="opencode-term">> OpenCode Agent</div></div>'
+    },
     
     // ===== NETWORK =====
     'http_server': {
