@@ -2,12 +2,14 @@
 *.obj
 *.exe~
 
-# Output
+# Output — runtime files
 output/*.exe
 output/*.obj
+output/*.db
 
-# Build
-build.bat~
+# Root — old binaries and runtime
+server.exe
+*.db
 
 # Editor
 *.swp
@@ -22,3 +24,11 @@ Thumbs.db
 
 # Logs
 *.log
+
+# External projects
+author-site/
+
+# Junction to output/www/
+www
+
+gitverse/*.exe

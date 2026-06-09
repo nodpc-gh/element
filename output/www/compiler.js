@@ -322,14 +322,69 @@ function openFile() {
     input.click();
 }
 
+// ===== СОХРАНИТЬ НА СЕРВЕР =====
+function saveToServer() {
+    var project = compileProject();
+    var name = project.name || prompt('Имя проекта:', 'project_' + Date.now());
+    if (!name) return;
+
+    var payload = JSON.stringify({ name: name, data: project });
+    
+    fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: payload,
+        credentials: 'same-origin'
+    }).then(function(r) {
+        if (r.status === 401) {
+            if (window.Console) window.Console.error('Ошибка: не авторизован');
+            if (window.Auth) Auth.showLogin();
+            throw new Error('Unauthorized');
+        }
+        if (!r.ok) throw new Error('Ошибка сохранения');
+        return r.json();
+    }).then(function(data) {
+        if (window.Console) window.Console.success('Проект сохранён на сервере: ' + (data.id || name));
+    }).catch(function(err) {
+        if (window.Console) window.Console.error('Ошибка: ' + err.message);
+    });
+}
+
+// ===== ЗАГРУЗИТЬ ПРОЕКТ С СЕРВЕРА ПО ID =====
+function loadFromServer(id) {
+    fetch('/api/projects/' + id)
+        .then(function(r) {
+            if (!r.ok) throw new Error('Ошибка загрузки проекта');
+            return r.json();
+        })
+        .then(function(data) {
+            var project = loadFromJSON(JSON.stringify(data));
+            if (project) {
+                applyProject(project);
+                if (window.Console) window.Console.success('Проект #' + id + ' загружен');
+            }
+        })
+        .catch(function(err) {
+            if (window.Console) window.Console.error('Ошибка: ' + err.message);
+        });
+}
+
+// ===== ПОКАЗАТЬ СПИСОК ПРОЕКТОВ =====
+function showProjects() {
+    if (window.Auth) Auth.showProjects();
+}
+
 // Экспорт функций
 window.Compiler = {
     compile: compileProject,
     save: saveToJSON,
+    saveToServer: saveToServer,
     copy: copyToClipboard,
     load: loadFromJSON,
     apply: applyProject,
-    openFile: openFile
+    openFile: openFile,
+    loadFromServer: loadFromServer,
+    showProjects: showProjects
 };
 
 })();

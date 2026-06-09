@@ -1055,10 +1055,10 @@ html, body {
 
 /* Модальное окно редактора кода - на всё окно */
 #sourceModal {
+    display: none;
     min-width: 80%;
     max-width: 90%;
     max-height: 90vh;
-    display: flex;
     flex-direction: column;
 }
 
@@ -1884,3 +1884,97 @@ html, body {
 .port-connected.yes { background: rgba(78, 201, 176, 0.2); color: #4ec9b0; }
 .port-connected.no  { background: rgba(255,255,255,0.05); color: var(--text-dim); }
 #portInfoList { padding: 0; }
+
+/* ===== LOGIN MODAL ===== */
+#loginModal {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--bg-panel);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+    z-index: 2000;
+    min-width: 320px;
+    overflow: hidden;
+}
+#loginModal input:focus {
+    outline: none;
+    border-color: var(--accent-blue) !important;
+}
+#btnLoginSubmit:hover {
+    background: #0098ff !important;
+}
+#loginModal .modal-body {
+    padding: 0;
+}
+#loginError {
+    padding: 6px 8px;
+    background: rgba(244, 135, 113, 0.15);
+    border: 1px solid rgba(244, 135, 113, 0.3);
+    border-radius: 2px;
+}
+/* Logged-in state for login button */
+.toolbar .logged-in {
+    border-color: var(--accent-cyan) !important;
+    color: var(--accent-cyan) !important;
+}
+
+/* ===== PROJECTS LIST MODAL ===== */
+#projectsModal {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--bg-panel);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+    z-index: 2000;
+    min-width: 500px;
+    max-width: 80%;
+    max-height: 70vh;
+    overflow: hidden;
+}
+#projectsModal .modal-body {
+    padding: 0;
+    max-height: calc(70vh - 50px);
+    overflow-y: auto;
+}
+.project-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: background 0.12s;
+    gap: 12px;
+}
+.project-item:hover {
+    background: #2d2d2d;
+}
+.project-item .project-name {
+    flex: 1;
+    font-weight: 600;
+    color: var(--text-bright);
+    font-size: 12px;
+}
+.project-item .project-date {
+    font-size: 10px;
+    color: var(--text-dim);
+}
+.project-item .project-load-btn {
+    background: var(--accent-blue);
+    border: none;
+    color: #fff;
+    padding: 4px 12px;
+    border-radius: 2px;
+    cursor: pointer;
+    font-size: 10px;
+}
+.project-item .project-load-btn:hover {
+    background: #0098ff;
+}

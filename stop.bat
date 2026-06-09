@@ -4,11 +4,8 @@ echo   Element IDE Server Stop
 echo ==================================
 echo.
 
-taskkill /F /IM element.exe 2>nul
-if errorlevel 1 (
-    echo Server not running
-) else (
-    echo Server stopped
-)
+taskkill /F /IM server.exe 2>nul
+taskkill /F /IM server_public.exe 2>nul
+echo Server stopped (if it was running)
 echo.
 echo ==================================

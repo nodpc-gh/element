@@ -1,13 +1,10 @@
 section '.code' readable executable
 
 start:
-    ; Инициализация БД пользователей
+    ; Инициализация БД
     invoke GetCurrentDirectory, 260, db_path
     call element_db_init
 
-    ; Инициализируем сессии
-    call session_init
-    
     ; Инициализация Winsock
     invoke WSAStartup, 0202h, wsadata
     
@@ -34,7 +31,7 @@ start:
     invoke listen, [server_s], 5
 
     ; Открываем браузер
-    invoke ShellExecuteA, 0, open_cmd, browser_url, 0, 0, 1
+    ; invoke ShellExecuteA, 0, open_cmd, browser_url, 0, 0, 1
 
 main_loop:
     ; Принятие подключения
@@ -231,8 +228,6 @@ main_loop:
 
 ; ===== ОБРАБОТКА API ЗАПРОСОВ =====
 handle_api:
-    ; esi указывает на URL (начинается с "/api/...")
-    ; Определяем метод
     cmp dword [recv_buf], 'GET '
     je .api_get
     cmp dword [recv_buf], 'POST'
@@ -240,23 +235,14 @@ handle_api:
     jmp send_404
 
 .api_get:
-    ; GET /api/auth/login → 404 (login только POST)
-    cmp dword [esi+5], 'auth'
-    je send_404
-    
-    ; GET /api/elements — публичный, без сессии
+    ; GET /api/elements
     cmp dword [esi+5], 'elem'
-    jne .get_req_auth
+    jne .get_projects
     cmp byte [esi+12], 's'
     je api_get_elements
     jmp send_404
     
-.get_req_auth:
-    ; GET /api/* — требуется сессия
-    call check_session
-    test eax, eax
-    jz send_401
-    
+.get_projects:
     ; GET /api/projects
     cmp dword [esi+8], 'ject'
     jne .get_prj
@@ -274,33 +260,6 @@ handle_api:
     jmp send_404
 
 .api_post:
-    ; POST без авторизации: /api/auth/login, /api/auth/register
-    cmp dword [esi+5], 'auth'
-    jne .post_auth_required
-    ; /api/auth/login
-    cmp dword [esi+10], 'logi'
-    je api_auth_login
-    ; /api/auth/register
-    cmp dword [esi+10], 'regi'
-    je api_auth_register
-    ; /api/auth/logout
-    cmp dword [esi+10], 'logo'
-    je .post_auth_logout
-    jmp send_404
-    
-.post_auth_logout:
-    ; POST /api/auth/logout — проверяем сессию
-    call check_session
-    test eax, eax
-    jz send_401
-    jmp api_auth_logout
-
-.post_auth_required:
-    ; Все остальные POST /api/* — требуется сессия
-    call check_session
-    test eax, eax
-    jz send_401
-    
     ; POST /api/save-project
     cmp dword [esi+5], 'save'
     je api_save_project
@@ -313,40 +272,136 @@ handle_api:
 
 ; GET /api/projects - список всех проектов
 api_get_projects:
+    push esi edi
+
     mov edi, resp_buf
-    mov ecx, 6
-    mov esi, debug_msg
-    rep movsb
-    mov byte [edi], ' '
-    inc edi
+    mov dword [edi], '{"to'
+    mov dword [edi+4], 'tal"'
+    mov byte [edi+8], ':'
+    add edi, 9
+
+    push edi
     mov eax, [db_header.total_records]
     call number_to_string
+    pop edi
     add edi, eax
 
-    mov eax, edi
-    sub eax, resp_buf
+    mov dword [edi], ',"pr'
+    mov dword [edi+4], 'ojec'
+    mov dword [edi+8], 'ts":'
+    mov byte [edi+12], '['
+    add edi, 13
+
+    invoke SetFilePointer, [db_handle], sizeof.DBHeader, 0, FILE_BEGIN
+    mov ecx, [db_header.total_records]
+    test ecx, ecx
+    jz .close_json
+
+    mov eax, sizeof.DBIndex
+    mul ecx
+    invoke ReadFile, [db_handle], index_buffer, eax, bytes_read, 0
+
+    xor ebx, ebx
+    xor esi, esi
+    mov ecx, [db_header.total_records]
+
+.iter_proj:
+    push ecx
+    lea edx, [index_buffer + esi]
+
+    mov eax, [edx + DBIndex.flags]
+    test eax, 1
+    jnz .skip_proj
+
+    mov eax, [edx + DBIndex.data_offset]
+    call db_read_record_name
+
+    lea eax, [read_buffer]
+    cmp dword [eax], 'proj'
+    jne .skip_proj
+    cmp byte [eax+7], ':'
+    jne .skip_proj
+
+    test ebx, ebx
+    jz .first_proj
+    mov byte [edi], ','
+    inc edi
+.first_proj:
+
+    mov byte [edi], '{'
+    inc edi
+    mov dword [edi], '"id"'
+    add edi, 4
+    mov byte [edi], ':'
+    inc edi
+
+    push edi
+    mov eax, [edx + DBIndex.id]
+    mov edi, resp_buf + 4096
+    call number_to_string
+    pop edi
+    push edx esi ecx
+    mov esi, resp_buf + 4096
     mov ecx, eax
+    rep movsb
+    pop ecx esi edx
+
+    mov dword [edi], ',"na'
+    add edi, 4
+    mov byte [edi], 'm'
+    inc edi
+    mov byte [edi], 'e'
+    inc edi
+    mov byte [edi], '"'
+    inc edi
+    mov byte [edi], ':'
+    inc edi
+    mov byte [edi], '"'
+    inc edi
+
+    push edx esi ecx
+    lea esi, [read_buffer + 8]
+.copy_name:
+    lodsb
+    test al, al
+    jz .name_done
+    stosb
+    jmp .copy_name
+.name_done:
+    pop ecx esi edx
+
+    mov byte [edi], '"'
+    inc edi
+    mov byte [edi], '}'
+    inc edi
+
+    inc ebx
+
+.skip_proj:
+    add esi, sizeof.DBIndex
+    pop ecx
+    dec ecx
+    jnz .iter_proj
+
+.close_json:
+    mov byte [edi], ']'
+    inc edi
+    mov byte [edi], '}'
+    inc edi
+
     invoke send, [client_s], h_200, h_200_len, 0
     invoke send, [client_s], mime_json, mime_json_len, 0
     invoke send, [client_s], h_ct_end, h_ct_end_len, 0
     invoke send, [client_s], h_end, h_end_len, 0
+    mov ecx, edi
+    sub ecx, resp_buf
     invoke send, [client_s], resp_buf, ecx, 0
-    jmp close_conn
 
-debug_msg db 'count=', 0
-
-.send_empty:
-    mov ecx, 16
-    invoke send, [client_s], h_200, h_200_len, 0
-    invoke send, [client_s], mime_json, mime_json_len, 0
-    invoke send, [client_s], h_ct_end, h_ct_end_len, 0
-    invoke send, [client_s], h_end, h_end_len, 0
-    invoke send, [client_s], api_projects_list, 15, 0
+    pop edi esi
     jmp close_conn
 
 ; GET /api/projects/{id} - получить проект по ID
 api_get_project:
-    ; Ищем последний '/' в URL, после него ID
     lea esi, [recv_buf + 4]
     xor edx, edx
 .find_last:
@@ -363,7 +418,6 @@ api_get_project:
     test edx, edx
     jz send_404
 
-    ; Парсим число по EDX
     mov esi, edx
     xor eax, eax
 .id_loop:
@@ -381,14 +435,12 @@ api_get_project:
     test eax, eax
     jz send_404
 
-    ; Читаем запись из БД по ID
     push eax
     call db_read_record
     add esp, 4
     test ecx, ecx
     jz send_404
 
-    ; ESI = read_buffer с JSON-данными, ECX = размер
     push ecx
     invoke send, [client_s], h_200, h_200_len, 0
     invoke send, [client_s], mime_json, mime_json_len, 0
@@ -423,7 +475,6 @@ api_save_project:
 .found_body_save:
     add esi, 4
 
-    ; Генерируем имя: "project:Project_N"
     mov edi, path_buf
     mov dword [edi], 'proj'
     mov dword [edi+4], 'ect:'
@@ -445,7 +496,6 @@ api_save_project:
     add edi, eax
     mov byte [edi], 0
 
-    ; Вычисляем длину JSON
     push esi
     mov edi, esi
     xor eax, eax
@@ -479,6 +529,7 @@ api_save_project:
     inc edi
     push eax
     call number_to_string
+    add esp, 4
     add edi, eax
     mov byte [edi], '}'
     inc edi
@@ -569,16 +620,6 @@ json_find_value:
     pop edi esi edx ecx ebx
     ret
 
-; ----- ОТПРАВКА 400 -----
-send_400:
-    invoke send, [client_s], h_400, h_400_len, 0
-    jmp close_conn
-
-; ----- ОТПРАВКА 401 -----
-send_401:
-    invoke send, [client_s], h_401, h_401_len, 0
-    jmp close_conn
-
 ; Сообщение об ошибке
 bind_error_msg      db 'Failed to bind to port 8080!', 0
 bind_error_title    db 'Server Error', 0
@@ -620,6 +661,9 @@ handle_post:
     invoke send, [client_s], h_end, h_end_len, 0
     invoke send, [client_s], resp_json, resp_len, 0
     jmp close_conn
+
+send_400:
+    invoke send, [client_s], h_400, h_400_len, 0
 
 send_404:
     invoke send, [client_s], h_404, 24, 0

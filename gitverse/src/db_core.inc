@@ -1,6 +1,6 @@
 ; ============================================================
-; Element IDE - Database Functions (db_code.inc)
-; Реализация функций работы с БД
+; Element IDE - Core Database Engine (db_core.inc)
+; Базовые операции с файловой БД (рекорды + индекс)
 ; ============================================================
 
 ; ----- ИНИЦИАЛИЗАЦИЯ БД -----
@@ -53,7 +53,7 @@ proc db_init, path_ptr
     
     mov [db_header.version], DB_VERSION
     mov [db_header.total_records], 0
-    mov [db_header.free_offset], sizeof.DBHeader
+    mov [db_header.free_offset], sizeof.DBHeader + sizeof.DBIndex * MAX_PROJECTS
     
     ; Записываем заголовок
     invoke SetFilePointer, [db_handle], 0, 0, FILE_BEGIN
@@ -70,7 +70,7 @@ proc db_init, path_ptr
     mov eax, DB_ERROR_OPEN
     
 .done:
-    pop ebp esi edi edx ecx ebx
+    pop edi esi edx ecx ebx
     ret
 endp
 
@@ -100,9 +100,8 @@ endp
 ; Вход: ESI = имя проекта, EDI = JSON данные, ECX = размер JSON
 ; Выход: EAX = ID записи или 0 (ошибка)
 proc db_create_record, name, json_data, json_size
-    push ebx ecx edx esi edi ebp
+    push ebx ecx edx esi edi
     
-    mov ebp, esp
     mov esi, [name]
     mov edi, [json_data]
     mov ecx, [json_size]
@@ -110,6 +109,7 @@ proc db_create_record, name, json_data, json_size
     ; Проверяем, нет ли уже такого имени
     push esi
     call db_find_by_name
+    add esp, 4
     test eax, eax
     jnz .exists
     
@@ -118,12 +118,13 @@ proc db_create_record, name, json_data, json_size
     inc eax
     mov [db_header.total_records], eax
     
-    ; Вычисляем смещение
-    mov edx, [db_header.free_offset]
+    ; Вычисляем смещение — сохраняем в EBX (callee-saved, переживёт invoke)
+    mov ebx, [db_header.free_offset]
+    mov edx, ebx
     
     ; Записываем данные в буфер
-    mov [temp_record + DBRecord.id], eax
-    mov [temp_record + DBRecord.name_len], 0
+    mov dword [temp_record + DBRecord.id], eax
+    mov dword [temp_record + DBRecord.name_len], 0
     
     ; Копируем имя
     mov esi, [name]
@@ -137,23 +138,47 @@ proc db_create_record, name, json_data, json_size
     loop .copy_name
 .name_done:
     sub edi, temp_record + DBRecord.name
-    mov [temp_record + DBRecord.name_len], edi
+    mov dword [temp_record + DBRecord.name_len], edi
     
     ; Копируем JSON
     mov esi, [json_data]
-    mov edi, temp_record + DBRecord.json_data
+    mov edi, temp_record + json_data_offset
     mov ecx, [json_size]
     rep movsb
     
     ; Вычисляем размер записи
     mov eax, [json_size]
-    add eax, sizeof.DBRecord
+    add eax, DBRecordHeaderSize
     mov [db_header.free_offset], edx
     add [db_header.free_offset], eax
     
     ; Записываем в файл
     invoke SetFilePointer, [db_handle], edx, 0, FILE_BEGIN
     invoke WriteFile, [db_handle], temp_record, eax, bytes_written, 0
+    
+    ; Записываем индекс
+    push [name]
+    call calc_hash
+    add esp, 4
+    mov dword [temp_index + DBIndex.name_hash], eax
+    
+    mov eax, [db_header.total_records]
+    mov dword [temp_index + DBIndex.id], eax
+    mov dword [temp_index + DBIndex.name_offset], 0
+    mov dword [temp_index + DBIndex.data_offset], ebx
+    mov eax, [json_size]
+    mov dword [temp_index + DBIndex.data_size], eax
+    mov dword [temp_index + DBIndex.flags], 0
+    mov dword [temp_index + DBIndex.created], 0
+    mov dword [temp_index + DBIndex.modified], 0
+    
+    mov eax, [db_header.total_records]
+    dec eax
+    mov ecx, sizeof.DBIndex
+    mul ecx
+    add eax, sizeof.DBHeader
+    invoke SetFilePointer, [db_handle], eax, 0, FILE_BEGIN
+    invoke WriteFile, [db_handle], temp_index, sizeof.DBIndex, bytes_written, 0
     
     ; Обновляем заголовок
     call db_write_header
@@ -166,24 +191,18 @@ proc db_create_record, name, json_data, json_size
     mov eax, 0  ; Уже существует
     
 .done:
-    pop ebp edi esi edx ecx ebx
+    pop edi esi edx ecx ebx
     ret
 endp
 
 ; ----- ПОИСК ПО ИМЕНИ -----
-; Вход: ESI = имя для поиска
+; Вход: ESI = имя для поиска => изменил на поиск по стэку
 ; Выход: EAX = смещение данных или 0 (не найдено)
 proc db_find_by_name, name
-    push ebx ecx edx esi edi ebp
+    push ebx ecx esi edi
     
-    mov ebp, esp
-    mov esi, [name]
+    mov edx, [name]  ; EDX = искомое имя (сторка)
     
-    ; Вычисляем хеш имени
-    call calc_hash
-    mov ebx, eax  ; EBX = хеш для поиска
-    
-    ; Читаем индекс
     invoke SetFilePointer, [db_handle], sizeof.DBHeader, 0, FILE_BEGIN
     
     mov ecx, [db_header.total_records]
@@ -196,28 +215,54 @@ proc db_find_by_name, name
     mul ecx
     invoke ReadFile, [db_handle], index_buffer, eax, bytes_read, 0
     
-    ; Ищем по хешу
+    ; Перебираем записи
     mov ecx, [db_header.total_records]
     mov edi, index_buffer
 .search_loop:
     test ecx, ecx
     jz .not_found
     
-    mov eax, [edi + DBIndex.name_hash]
-    cmp eax, ebx
-    je .hash_found
+    ; Пропускаем удалённые
+    mov eax, [edi + DBIndex.flags]
+    test eax, 1
+    jnz .skip_record
     
+    ; Смещение данных записи
+    mov eax, [edi + DBIndex.data_offset]
+    test eax, eax
+    jz .skip_record
+    
+    ; Читаем имя из data_offset + 4 (пропускаем DBRecord.id)
+    push ecx edi edx
+    add eax, 4
+    invoke SetFilePointer, [db_handle], eax, 0, FILE_BEGIN
+    invoke ReadFile, [db_handle], read_buffer, MAX_NAME_LEN, bytes_read, 0
+    pop edx edi ecx
+    
+    ; Сравниваем read_buffer с [edx]
+    push ecx edi edx esi
+    mov esi, read_buffer
+    mov edi, edx
+.cmp_loop:
+    lodsb
+    movzx ebx, byte [edi]
+    inc edi
+    cmp al, bl
+    jne .not_match
+    test al, al
+    jz .match_found  ; обе строки завершились null
+    jmp .cmp_loop
+    
+.not_match:
+    pop esi edx edi ecx
+    
+.skip_record:
     add edi, sizeof.DBIndex
     dec ecx
     jmp .search_loop
     
-.hash_found:
-    ; Проверяем флаги (не удалено ли)
-    mov eax, [edi + DBIndex.flags]
-    test eax, 1
-    jnz .not_found
-    
-    ; Возвращаем смещение данных
+.match_found:
+    pop esi edx edi ecx
     mov eax, [edi + DBIndex.data_offset]
     jmp .done
     
@@ -225,20 +270,19 @@ proc db_find_by_name, name
     xor eax, eax
     
 .done:
-    pop ebp edi esi edx ecx ebx
+    pop edi esi ecx ebx
     ret
 endp
 
 ; ----- ЧТЕНИЕ ЗАПИСИ ПО ID -----
-; Вход: EAX = ID записи
+; Вход: стек = [ID]
 ; Выход: ESI = буфер с данными, ECX = размер
-proc db_read_record, id
-    push ebx ecx edx esi edi ebp
+; Примечание: НЕ proc — возвращает значения в ESI/ECX
+db_read_record:
+    push ebx edi
     
-    mov ebp, esp
-    mov ebx, [id]
+    mov ebx, [esp + 12]  ; ID (после push ebx[4],edi[4],ret[4] = 12)
     
-    ; Ищем запись по ID
     invoke SetFilePointer, [db_handle], sizeof.DBHeader, 0, FILE_BEGIN
     
     mov ecx, [db_header.total_records]
@@ -250,7 +294,6 @@ proc db_read_record, id
     mul ecx
     invoke ReadFile, [db_handle], index_buffer, eax, bytes_read, 0
     
-    ; Ищем по ID
     mov ecx, [db_header.total_records]
     mov edi, index_buffer
 .search_id:
@@ -266,11 +309,13 @@ proc db_read_record, id
     jmp .search_id
     
 .found:
-    ; Читаем данные
     mov eax, [edi + DBIndex.data_offset]
     mov ecx, [edi + DBIndex.data_size]
     
+    push ecx                        ; сохраняем data_size
+    add eax, DBRecordHeaderSize     ; пропускаем заголовок записи
     invoke SetFilePointer, [db_handle], eax, 0, FILE_BEGIN
+    pop ecx                          ; восстанавливаем data_size
     invoke ReadFile, [db_handle], read_buffer, ecx, bytes_read, 0
     
     mov esi, read_buffer
@@ -282,17 +327,15 @@ proc db_read_record, id
     xor ecx, ecx
     
 .done:
-    pop ebp edi edx ecx ebx
-    ret
-endp
+    pop edi ebx
+    ret  ; caller cleans up with add esp, 4
 
 ; ----- УДАЛЕНИЕ ЗАПИСИ -----
 ; Вход: EAX = ID записи
 ; Выход: EAX = 1 (OK) или 0 (ошибка)
 proc db_delete_record, id
-    push ebx ecx edx esi edi ebp
+    push ebx ecx edx esi edi
     
-    mov ebp, esp
     mov ebx, [id]
     
     ; Ищем запись по ID
@@ -339,33 +382,55 @@ proc db_delete_record, id
     xor eax, eax
     
 .done:
-    pop ebp edi edx ecx ebx
+    pop edi esi edx ecx ebx
     ret
 endp
 
 ; ----- ВЫЧИСЛЕНИЕ ХЕША -----
-; Вход: ESI = строка
-; Выход: EAX = хеш
+; Вход: стек = [str_ptr]
+; Выход: EAX = 32-бит хеш (djb2)
 proc calc_hash, str
     push ebx ecx edx esi
     
     mov esi, [str]
-    xor eax, eax
-    xor ebx, ebx
+    mov eax, 5381         ; djb2 initial hash
+    xor ecx, ecx
     
 .hash_loop:
-    lodsb
-    test al, al
+    movzx ecx, byte [esi]
+    test cl, cl
     jz .hash_done
     
-    add ebx, eax
-    rol eax, 3
-    xor eax, ebx
-    
+    ; eax = eax * 33 + ecx
+    mov edx, eax
+    shl eax, 5            ; eax * 32
+    add eax, edx          ; eax * 33
+    add eax, ecx          ; + char
+    inc esi
     jmp .hash_loop
     
 .hash_done:
     pop esi edx ecx ebx
+    ret
+endp
+
+; ----- ЧТЕНИЕ JSON ДАННЫХ ЗАПИСИ ПО СМЕЩЕНИЮ -----
+; Вход: EAX = data_offset (из db_find_by_name)
+; Выход: ESI = буфер с json_data, ECX = размер данных (0 если ошибка)
+proc db_read_record_data, offset
+    push ebx edx edi
+
+    mov ebx, [offset]
+
+    ; Читаем json_data: пропускаем DBRecord (id 4 + name 64 + name_len 4 = DBRecordHeaderSize)
+    add ebx, DBRecordHeaderSize
+    invoke SetFilePointer, [db_handle], ebx, 0, FILE_BEGIN
+    invoke ReadFile, [db_handle], read_buffer, 256, bytes_read, 0
+
+    mov esi, read_buffer
+    mov ecx, [bytes_read]
+
+    pop edi edx ebx
     ret
 endp
 

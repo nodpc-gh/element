@@ -55,6 +55,7 @@
 <button id="btnDatabase" title="База данных">🗄️</button>
 <button id="btnOpen" title="Открыть">📂</button>
 <button id="btnSave" title="Сохранить">💾</button>
+<button id="btnLogin" title="Войти">🔑</button>
 <button id="btnForm" title="Редактор форм">📐</button>
 <button id="btnCompile" title="Компилятор">⚙️</button>
 <button id="btnSource" title="Код">📝</button>
@@ -296,6 +297,49 @@
 <!-- Детали элемента -->
 </div>
 </div>
+</div>
+</div>
+
+<!-- Модальное окно логина/регистрации -->
+<div id="loginModal">
+<div class="modal-header">
+<span class="modal-title" id="loginModalTitle">🔑 Авторизация</span>
+<button id="btnCloseLogin" class="modal-close">✕</button>
+</div>
+<div class="modal-body">
+<div style="padding:20px;">
+<div class="db-tabs" style="margin-bottom:16px;">
+<div class="db-tab active" id="loginTabLogin" data-mode="login">🔑 Вход</div>
+<div class="db-tab" id="loginTabRegister" data-mode="register">📝 Регистрация</div>
+</div>
+<div id="loginForm">
+<div style="margin-bottom:12px;">
+<div style="font-size:11px;color:var(--text-dim);margin-bottom:4px;">Имя пользователя</div>
+<input id="loginUsername" type="text" style="width:100%;background:var(--bg-input);border:1px solid var(--border-color);color:var(--text-main);padding:8px 10px;border-radius:2px;font-size:12px;">
+</div>
+<div style="margin-bottom:12px;">
+<div style="font-size:11px;color:var(--text-dim);margin-bottom:4px;">Пароль</div>
+<input id="loginPassword" type="password" style="width:100%;background:var(--bg-input);border:1px solid var(--border-color);color:var(--text-main);padding:8px 10px;border-radius:2px;font-size:12px;">
+</div>
+<div id="loginPassConfirmGroup" style="margin-bottom:16px;display:none;">
+<div style="font-size:11px;color:var(--text-dim);margin-bottom:4px;">Подтвердите пароль</div>
+<input id="loginPasswordConfirm" type="password" style="width:100%;background:var(--bg-input);border:1px solid var(--border-color);color:var(--text-main);padding:8px 10px;border-radius:2px;font-size:12px;">
+</div>
+<div id="loginError" style="color:#f48771;font-size:11px;margin-bottom:10px;display:none;padding:6px 8px;background:rgba(244,135,113,0.15);border:1px solid rgba(244,135,113,0.3);border-radius:2px;"></div>
+<button id="btnLoginSubmit" style="width:100%;background:var(--accent-blue);border:none;color:#fff;padding:8px;border-radius:2px;font-size:12px;font-weight:600;cursor:pointer;">🔑 Войти</button>
+</div>
+</div>
+</div>
+</div>
+
+<!-- Модальное окно списка проектов -->
+<div id="projectsModal">
+<div class="modal-header">
+<span class="modal-title">📂 Проекты на сервере</span>
+<button id="btnCloseProjects" class="modal-close">✕</button>
+</div>
+<div class="modal-body">
+<div id="projectsList"></div>
 </div>
 </div>
 

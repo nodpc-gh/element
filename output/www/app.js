@@ -1343,7 +1343,7 @@ document.getElementById('btnDownloadJson').onclick = function() {
 
 // ===== ОТКРЫТЬ ПРОЕКТ =====
 document.getElementById('btnOpen').onclick = function() {
-    Compiler.openFile();
+    Auth.showProjects();
 };
 
 // ===== ИМПОРТ ПРОЕКТА =====
@@ -1354,9 +1354,9 @@ document.getElementById('btnImport').onclick = function() {
 // ===== РЕДАКТОР ФОРМ =====
 document.getElementById('btnForm').onclick = toggleFormEditor;
 
-// ===== СОХРАНИТЬ ПРОЕКТ =====
+// ===== СОХРАНИТЬ ПРОЕКТ (на сервер) =====
 document.getElementById('btnSave').onclick = function() {
-    Compiler.save();
+    Compiler.saveToServer();
 };
 
 // ===== РЕДАКТОР КОДА =====
@@ -1501,7 +1501,7 @@ function openProjectCode() {
     sourceElType.textContent = 'project';
     sourceCodeEditor.value = projectCode;
     updateHighlight();
-    sourceModal.style.display = 'block';
+    sourceModal.style.display = 'flex';
     overlay.style.display = 'block';
     sourceStatus.textContent = '';
 }
@@ -1524,7 +1524,7 @@ function openElementSourceCode() {
 
     sourceCodeEditor.value = code;
     updateHighlight();
-    sourceModal.style.display = 'block';
+    sourceModal.style.display = 'flex';
     overlay.style.display = 'block';
     sourceStatus.textContent = '';
 }
@@ -1645,7 +1645,7 @@ window.openSourceForType = function(type) {
 
     sourceCodeEditor.value = code;
     updateHighlight();
-    sourceModal.style.display = 'block';
+    sourceModal.style.display = 'flex';
     overlay.style.display = 'block';
     sourceStatus.textContent = '';
 };
@@ -1696,5 +1696,241 @@ if (btnCenter) {
 window.createElementFromPalette = function(type, x, y) {
     mkEl(type, x, y);
 };
+
+// ===== АВТОРИЗАЦИЯ & РЕГИСТРАЦИЯ =====
+var Auth = {
+    isLoggedIn: false,
+    mode: 'login',
+
+    login: function(username, password) {
+        return fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: username, password: password }),
+            credentials: 'same-origin'
+        }).then(function(r) {
+            if (!r.ok) throw new Error('Неверный логин или пароль');
+            return r.json();
+        }).then(function(data) {
+            Auth.isLoggedIn = true;
+            document.getElementById('btnLogin').textContent = '🚪';
+            document.getElementById('btnLogin').title = 'Выйти';
+            document.getElementById('btnLogin').classList.add('logged-in');
+            document.getElementById('loginModal').style.display = 'none';
+            document.getElementById('overlay').style.display = 'none';
+            if (window.Console) window.Console.success('Авторизация успешна');
+            return data;
+        });
+    },
+
+    register: function(username, password) {
+        return fetch('/api/auth/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: username, password: password }),
+            credentials: 'same-origin'
+        }).then(function(r) {
+            if (r.status === 409) throw new Error('Пользователь уже существует');
+            if (!r.ok) throw new Error('Ошибка регистрации');
+            return r.json();
+        }).then(function(data) {
+            if (window.Console) window.Console.success('Регистрация успешна!');
+            // Автоматический вход после регистрации
+            return Auth.login(username, password);
+        });
+    },
+
+    logout: function() {
+        return fetch('/api/auth/logout', {
+            method: 'POST',
+            credentials: 'same-origin'
+        }).then(function(r) {
+            return r.json();
+        }).then(function(data) {
+            Auth.isLoggedIn = false;
+            document.getElementById('btnLogin').textContent = '🔑';
+            document.getElementById('btnLogin').title = 'Войти';
+            document.getElementById('btnLogin').classList.remove('logged-in');
+            if (window.Console) window.Console.log('Выход выполнен', 'info');
+            return data;
+        });
+    },
+
+    checkSession: function() {
+        return fetch('/api/projects', {
+            method: 'GET',
+            credentials: 'same-origin'
+        }).then(function(r) {
+            if (r.ok) {
+                Auth.isLoggedIn = true;
+                document.getElementById('btnLogin').textContent = '🚪';
+                document.getElementById('btnLogin').title = 'Выйти';
+                document.getElementById('btnLogin').classList.add('logged-in');
+                return true;
+            }
+            Auth.isLoggedIn = false;
+            return false;
+        }).catch(function() {
+            Auth.isLoggedIn = false;
+            return false;
+        });
+    },
+
+    showLogin: function() {
+        Auth.mode = 'login';
+        document.getElementById('loginModalTitle').textContent = '🔑 Авторизация';
+        document.getElementById('btnLoginSubmit').textContent = '🔑 Войти';
+        document.getElementById('loginPassConfirmGroup').style.display = 'none';
+        document.getElementById('loginTabLogin').classList.add('active');
+        document.getElementById('loginTabRegister').classList.remove('active');
+        document.getElementById('loginUsername').value = 'admin';
+        document.getElementById('loginPassword').value = 'admin';
+        document.getElementById('loginError').style.display = 'none';
+        document.getElementById('loginModal').style.display = 'block';
+        document.getElementById('overlay').style.display = 'block';
+        document.getElementById('loginUsername').focus();
+    },
+
+    showProjects: function() {
+        fetch('/api/projects').then(function(r) {
+            if (!r.ok) throw new Error('Ошибка загрузки');
+            return r.json();
+        }).then(function(data) {
+            var list = document.getElementById('projectsList');
+            var projects = data.projects || [];
+            if (projects.length === 0) {
+                list.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text-dim);font-size:12px;">Нет сохранённых проектов</div>';
+            } else {
+                list.innerHTML = projects.map(function(p) {
+                    var name = p.name || 'Проект #' + p.id;
+                    return '<div class="project-item" data-id="' + p.id + '">' +
+                        '<span class="project-name">📄 ' + name + '</span>' +
+                        '</div>';
+                }).join('');
+                list.querySelectorAll('.project-item').forEach(function(item) {
+                    item.onclick = function() {
+                        var id = this.getAttribute('data-id');
+                        document.getElementById('projectsModal').style.display = 'none';
+                        document.getElementById('overlay').style.display = 'none';
+                        Compiler.loadFromServer(id);
+                    };
+                });
+            }
+            document.getElementById('projectsModal').style.display = 'block';
+            document.getElementById('overlay').style.display = 'block';
+        }).catch(function() {
+            if (window.Console) window.Console.error('Ошибка загрузки проектов');
+        });
+    }
+};
+
+// Кнопка логина
+document.getElementById('btnLogin').onclick = function() {
+    if (Auth.isLoggedIn) {
+        Auth.logout();
+    } else {
+        Auth.showLogin();
+    }
+};
+
+// Переключение между логином и регистрацией
+document.getElementById('loginTabLogin').onclick = function() {
+    Auth.mode = 'login';
+    document.getElementById('loginModalTitle').textContent = '🔑 Авторизация';
+    document.getElementById('btnLoginSubmit').textContent = '🔑 Войти';
+    document.getElementById('loginPassConfirmGroup').style.display = 'none';
+    document.getElementById('loginTabLogin').classList.add('active');
+    document.getElementById('loginTabRegister').classList.remove('active');
+    document.getElementById('loginError').style.display = 'none';
+};
+document.getElementById('loginTabRegister').onclick = function() {
+    Auth.mode = 'register';
+    document.getElementById('loginModalTitle').textContent = '📝 Регистрация';
+    document.getElementById('btnLoginSubmit').textContent = '📝 Зарегистрироваться';
+    document.getElementById('loginPassConfirmGroup').style.display = 'block';
+    document.getElementById('loginTabRegister').classList.add('active');
+    document.getElementById('loginTabLogin').classList.remove('active');
+    document.getElementById('loginUsername').value = '';
+    document.getElementById('loginPassword').value = '';
+    document.getElementById('loginPasswordConfirm').value = '';
+    document.getElementById('loginError').style.display = 'none';
+};
+
+// Кнопка отправки логина/регистрации
+document.getElementById('btnLoginSubmit').onclick = function() {
+    var username = document.getElementById('loginUsername').value.trim();
+    var password = document.getElementById('loginPassword').value;
+    var errorEl = document.getElementById('loginError');
+    errorEl.style.display = 'none';
+
+    if (!username || !password) {
+        errorEl.textContent = '❌ Заполните все поля';
+        errorEl.style.display = 'block';
+        return;
+    }
+
+    if (Auth.mode === 'register') {
+        var confirm = document.getElementById('loginPasswordConfirm').value;
+        if (password !== confirm) {
+            errorEl.textContent = '❌ Пароли не совпадают';
+            errorEl.style.display = 'block';
+            return;
+        }
+        if (password.length < 3) {
+            errorEl.textContent = '❌ Пароль слишком короткий (мин. 3 символа)';
+            errorEl.style.display = 'block';
+            return;
+        }
+        Auth.register(username, password).catch(function(err) {
+            errorEl.textContent = '❌ ' + err.message;
+            errorEl.style.display = 'block';
+        });
+    } else {
+        Auth.login(username, password).catch(function(err) {
+            errorEl.textContent = '❌ ' + err.message;
+            errorEl.style.display = 'block';
+        });
+    }
+};
+
+// Enter в полях логина
+document.getElementById('loginUsername').onkeydown = function(e) {
+    if (e.key === 'Enter') document.getElementById('loginPassword').focus();
+};
+document.getElementById('loginPassword').onkeydown = function(e) {
+    if (e.key === 'Enter') {
+        if (Auth.mode === 'register') {
+            document.getElementById('loginPasswordConfirm').focus();
+        } else {
+            document.getElementById('btnLoginSubmit').click();
+        }
+    }
+};
+document.getElementById('loginPasswordConfirm').onkeydown = function(e) {
+    if (e.key === 'Enter') document.getElementById('btnLoginSubmit').click();
+};
+
+// Закрытие логина
+document.getElementById('btnCloseLogin').onclick = function() {
+    document.getElementById('loginModal').style.display = 'none';
+    document.getElementById('overlay').style.display = 'none';
+};
+
+// Закрытие списка проектов
+document.getElementById('btnCloseProjects').onclick = function() {
+    document.getElementById('projectsModal').style.display = 'none';
+    document.getElementById('overlay').style.display = 'none';
+};
+
+// Проверка сессии при загрузке
+setTimeout(function() {
+    Auth.checkSession().then(function(loggedIn) {
+        if (loggedIn && window.Console) {
+            window.Console.success('Сессия активна');
+        }
+    });
+}, 500);
+
+window.Auth = Auth;
 
 })();

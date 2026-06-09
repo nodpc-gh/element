@@ -17,39 +17,41 @@
 | **Веб-сервер** | FASM x86 Assembly (модульная архитектура) |
 | **Сокеты** | Win32 API (ws2_32.dll) |
 | **HTTP** | Ручная реализация |
-| **API** | REST (>/api/projects, /api/save-project) |
-| **База данных** | Файловая (DBM-формат) |
+| **API** | REST (`/api/elements`, `/api/projects`, `/api/save-project`) |
+| **База данных** | Файловая (element.db, DBM-формат) |
 | **Frontend** | HTML5/CSS3/JavaScript (чистый JS, без библиотек) |
 | **Подсветка кода** | Кастомная (FASM-синтаксис) |
 
 ### Почему FASM?
 
 - ⚡ **Скорость** — нативный машинный код
-- 📦 **Размер** — весь сервер ~285 КБ
+- 📦 **Размер** — dev ~254 КБ, public ~246 КБ
 - 🎯 **Контроль** — полная работа с памятью
 - 🏛️ **Классика** — дань уважения низкоуровневому программированию
 
 ### Статистика кода
 
 ```
-src_v2/            ~1200 строк  ассемблера (9 модулей)
-output/www/         ~2000 строк  JavaScript (8 модулей)
-output/www/          ~400 строк  CSS
+src_v2/            ~1300 строк  ассемблера (10 модулей)
+gitverse/src/      ~1200 строк  ассемблера (9 модулей, без auth)
+output/www/        ~2000 строк  JavaScript (8 модулей)
+output/www/         ~400 строк  CSS
 ──────────────────────────────────────
-Итого:             ~3600 строк  кода
+Итого:             ~3700 строк  кода
 ```
 
 ### Сборка
 
 ```batch
-"D:\Programms\IDE\FASM\FASM.EXE" src_v2\main_server.asm output\element.exe
+build              # dev-версия (src_v2/ → output/server.exe)
+build_pub          # public-версия (gitverse/src/ → output/server_public.exe)
 ```
 
 **Результат:**
-- `element.exe` — самодостаточный веб-сервер с REST API
-- Встроенный браузер html/css/js — все в одном exe
+- Два бинарника: dev (с авторизацией) и public (без auth)
+- Самодостаточный веб-сервер с REST API
+- Встроенный браузер html/css/js — всё в одном exe
 - Не требует библиотек / установки
-- Автоматически открывает браузер при запуске
 
 ---
 
@@ -225,15 +227,22 @@ http://localhost:8080
 
 ```
 Element/
-├── src_v2/                      # Исходники сервера на FASM
+├── src_v2/                      # Исходники dev-версии (с auth)
 │   ├── main_server.asm          # Точка входа
-│   ├── code.inc                 # Логика HTTP-сервера + API
-│   ├── data.inc                 # Данные (MIME, буферы)
-│   ├── db.inc                   # Структуры БД
-│   ├── db_code.inc              # Функции работы с БД
+│   ├── code.inc                 # HTTP-сервер + API хендлеры
+│   ├── data.inc                 # Данные (MIME, буферы, заголовки)
+│   ├── db.inc                   # Структуры БД (DBHeader, DBIndex, DBRecord)
+│   ├── db_core.inc              # Ядро БД: create, read, delete, find
+│   ├── db_users.inc             # Пользователи (element.db)
+│   ├── db_elements.inc          # Элементы палитры (GET /api/elements)
+│   ├── db_projects.inc          # Проекты (префикс project:)
+│   ├── auth.inc                 # Сессии, login/register/logout
 │   └── imports.inc              # Импорты Win32 API
+├── gitverse/src/                # Исходники public-версии (без auth)
+│   └── ...                      # Те же модули, кроме auth.inc
 ├── output/
-│   ├── element.exe              # Исполняемый файл сервера
+│   ├── server.exe               # Dev-сборка (с auth)
+│   ├── server_public.exe        # Public-сборка (без auth)
 │   └── www/                     # Статические файлы (frontend)
 │       ├── index.html           # Главная страница
 │       ├── style.css            # Стили (~1900 строк)
@@ -245,8 +254,14 @@ Element/
 │       ├── elements.js          # Палитра элементов
 │       ├── fasm_highlight.js    # Подсветка FASM
 │       └── source_editor.js     # Редактор кода
-├── build.bat                    # Скрипт сборки
-└── README.md                    # Документация
+├── build.bat                    # Сборка dev (src_v2/)
+├── build_pub.bat                # Сборка public (gitverse/src/)
+├── run.bat                      # Запуск dev (output\server.exe)
+├── run_pub.bat                  # Запуск public (output\server_public.exe)
+├── stop.bat                     # Остановка сервера
+├── status.bat                   # Статус сервера
+├── API.md                       # REST API документация
+└── README.md                    # Документация (этот файл)
 ```
 
 ## 🔧 Технические детали
@@ -254,11 +269,12 @@ Element/
 ### Сервер (FASM)
 
 - **FASM** — Flat Assembler
-- **Win32 API** — сокеты (ws2_32.dll), файловый ввод-вывод (kernel32.dll), печать/оболочка (shell32.dll)
+- **Win32 API** — сокеты (ws2_32.dll), файловый ввод-вывод (kernel32.dll)
 - **Порт** — 8080
-- **Многопоточность** — accept-цикл с последовательной обработкой
-- **API** — REST-like: GET /api/projects, GET /api/projects/{id}, POST /api/save-project
-- **Автооткрытие браузера** — ShellExecuteA при старте
+- **accept-цикл** — однопоточная последовательная обработка
+- **API** — `GET /api/elements`, `GET /api/projects`, `GET /api/projects/{id}`, `GET /api/prj/{id}`, `POST /api/save-project`, `POST /api/projects`
+- **База данных** — единый файл `element.db` с префиксами записей (`user:`, `project:`, `element:`)
+- **Две версии**: `src_v2/` — с авторизацией, `gitverse/src/` — публичная без auth
 
 ### Frontend (JS)
 
@@ -271,32 +287,24 @@ Element/
 ### Сборка
 
 ```batch
-build
-```
-
-Или вручную:
-```batch
-"D:\Programms\IDE\FASM\FASM.EXE" src_v2\main_server.asm output\element.exe
+build           # dev (src_v2/ → output/server.exe)
+build_pub       # public (gitverse/src/ → output/server_public.exe)
 ```
 
 ### Команды
 
 ```batch
-# Сборка
-build
+# Запуск dev
+run
 
-# Запуск
-start /B output\element.exe
+# Запуск public
+run_pub
 
 # Проверка
-tasklist | findstr element
-netstat -ano | findstr :8080
+status
 
 # Остановка
 stop
-
-# Статус
-status
 ```
 
 ## 📋 Функционал
@@ -326,7 +334,11 @@ status
 | База данных элементов (просмотр/поиск) | ✅ |
 | Элемент OpenCode (AI-агент) | ✅ |
 | Автооткрытие браузера | ✅ |
-| FAST-пути API (корректная маршрутизация) | ✅ |
+| REST API: список проектов, загрузка по ID, сохранение | ✅ |
+| REST API: палитра элементов (GET /api/elements) | ✅ |
+| Загрузка проекта с сервера из списка | ✅ |
+| Две версии сборки: dev (auth) и public | ✅ |
+| Корректная маршрутизация API | ✅ |
 | Статистика событий | ✅ |
 
 ## 🎯 Планы развития
@@ -376,5 +388,5 @@ MIT License — см. файл [LICENSE](LICENSE) для деталей.
 ---
 
 **Version:** 2.0.0  
-**Last Updated:** 2026-06-07  
+**Last Updated:** 2026-06-09  
 **Status:** Stable Release

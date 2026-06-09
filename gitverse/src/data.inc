@@ -79,50 +79,5 @@ section '.data' readable writeable
     ; Буфер для JSON ответов
     resp_buf    rb 4096
     
-    ; ===== АВТОРИЗАЦИЯ (сессии, cookie, ответы) =====
-    ; Данные для auth.inc
-    session_table    rb sizeof.DBSession * MAX_SESSIONS
-    session_count    dd 0
-    session_counter  dd 0
-    session_temp_id  db SESSION_ID_LEN dup(?)
-    
-    auth_user        db 'admin', 0
-    auth_pass        db 'admin', 0
-    
-    ; Cookie
-    cookie_prefix    db 'session_id='
-    cookie_prefix_l  = $ - cookie_prefix
-    set_cookie_hdr   db 'Set-Cookie: '
-    set_cookie_hdr_l = $ - set_cookie_hdr
-    cookie_path      db '; Path=/; HttpOnly', 13, 10
-    cookie_path_l    = $ - cookie_path
-    
-    ; Ответ 401 (используется auth.inc и code.inc)
-    h_401            db 'HTTP/1.1 401 Unauthorized', 13, 10
-                     db 'Content-Type: application/json', 13, 10
-                     db 'Connection: close', 13, 10, 13, 10
-                     db '{"error":"unauthorized"}', 0
-    h_401_len        = $ - h_401
-    
-    ; Ответ 403
-    h_403            db 'HTTP/1.1 403 Forbidden', 13, 10
-                     db 'Content-Type: application/json', 13, 10
-                     db 'Connection: close', 13, 10, 13, 10
-                     db '{"error":"forbidden"}', 0
-    h_403_len        = $ - h_403
-    
-    ; Буфер для куки из запроса
-    cookie_buf       rb 128
-
-    ; Префикс для записей пользователей
-    user_prefix      db 'user:', 0
-    
-    ; Ответ 409 Conflict
-    h_409            db 'HTTP/1.1 409 Conflict', 13, 10
-                     db 'Content-Type: application/json', 13, 10
-                     db 'Connection: close', 13, 10, 13, 10
-                     db '{"error":"user_exists"}', 0
-    h_409_len        = $ - h_409
-
     ; Переменные для БД
     include 'db.inc'
