@@ -3,7 +3,7 @@
 **Веб-IDE для визуального программирования с системой портов и соединений**
 
 ![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)
-![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)
+![Platform](https://img.shields.io/badge/platform-Windows%20|%20Linux-lightgrey.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 
 ## 🛠️ Технологии
@@ -15,9 +15,10 @@
 | Компонент | Технология |
 |-----------|------------|
 | **Веб-сервер** | FASM x86 Assembly (модульная архитектура) |
-| **Сокеты** | Win32 API (ws2_32.dll) |
+| **Сокеты (Win32)** | Win32 API (ws2_32.dll) |
+| **Сокеты (Linux)** | Linux syscalls (int 0x80) |
 | **HTTP** | Ручная реализация |
-| **API** | REST (`/api/elements`, `/api/projects`, `/api/save-project`) |
+| **API** | REST (`/api/elements`, `/api/projects`, `/api/projects/{id}`) |
 | **База данных** | Файловая (element.db, DBM-формат) |
 | **Frontend** | HTML5/CSS3/JavaScript (чистый JS, без библиотек) |
 | **Подсветка кода** | Кастомная (FASM-синтаксис) |
@@ -25,19 +26,21 @@
 ### Почему FASM?
 
 - ⚡ **Скорость** — нативный машинный код
-- 📦 **Размер** — dev ~254 КБ, public ~246 КБ
+- 📦 **Размер** — dev ~254 КБ, public ~246 КБ, linux ~248 КБ
 - 🎯 **Контроль** — полная работа с памятью
 - 🏛️ **Классика** — дань уважения низкоуровневому программированию
+- 🐧 **Linux** — нативный ELF без библиотек (syscalls int 0x80)
 
 ### Статистика кода
 
 ```
-src_v2/            ~1300 строк  ассемблера (10 модулей)
-gitverse/src/      ~1200 строк  ассемблера (9 модулей, без auth)
+src_v2/            ~1300 строк  ассемблера (10 модулей, dev + auth)
+gitverse/src/      ~1200 строк  ассемблера (9 модулей, public, без auth)
+linux/src/         ~1200 строк  ассемблера (8 модулей, ELF + syscalls)
 output/www/        ~2000 строк  JavaScript (8 модулей)
 output/www/         ~400 строк  CSS
 ──────────────────────────────────────
-Итого:             ~3700 строк  кода
+Итого:             ~4900 строк  кода
 ```
 
 ### Сборка
@@ -47,10 +50,15 @@ build              # dev-версия (src_v2/ → output/server.exe)
 build_pub          # public-версия (gitverse/src/ → output/server_public.exe)
 ```
 
+**Linux:**
+```bash
+cd linux && make   # ELF-исполняемый файл (element_linux)
+```
+
 **Результат:**
-- Два бинарника: dev (с авторизацией) и public (без auth)
+- Три бинарника: dev (с авторизацией), public (без auth), linux (ELF)
+- Кроссплатформенность: Windows + Linux
 - Самодостаточный веб-сервер с REST API
-- Встроенный браузер html/css/js — всё в одном exe
 - Не требует библиотек / установки
 
 ---
@@ -240,6 +248,19 @@ Element/
 │   └── imports.inc              # Импорты Win32 API
 ├── gitverse/src/                # Исходники public-версии (без auth)
 │   └── ...                      # Те же модули, кроме auth.inc
+├── linux/                       # Linux-порт (ELF + syscalls)
+│   ├── src/
+│   │   ├── main_server.asm      # Точка входа (ELF)
+│   │   ├── syscall.inc          # Макросы Linux syscalls (int 0x80)
+│   │   ├── code.inc             # HTTP-сервер + API хендлеры
+│   │   ├── data.inc             # Данные (MIME, буферы, заголовки)
+│   │   ├── db.inc               # Структуры БД + буферы
+│   │   ├── db_core.inc          # Ядро БД
+│   │   ├── db_elements.inc      # Элементы палитры
+│   │   └── db_projects.inc      # Проекты
+│   ├── www/                     # Фронтенд (копия)
+│   ├── Makefile                 # Сборка (fasm)
+│   └── element_linux            # Готовый ELF-бинарник
 ├── output/
 │   ├── server.exe               # Dev-сборка (с auth)
 │   ├── server_public.exe        # Public-сборка (без auth)
@@ -270,11 +291,12 @@ Element/
 
 - **FASM** — Flat Assembler
 - **Win32 API** — сокеты (ws2_32.dll), файловый ввод-вывод (kernel32.dll)
+- **Linux** — нативные syscalls (int 0x80), ELF executable
 - **Порт** — 8080
 - **accept-цикл** — однопоточная последовательная обработка
-- **API** — `GET /api/elements`, `GET /api/projects`, `GET /api/projects/{id}`, `GET /api/prj/{id}`, `POST /api/save-project`, `POST /api/projects`
+- **API** — `GET /api/elements`, `GET /api/projects`, `GET /api/projects/{id}`, `POST /api/prj/{name}`
 - **База данных** — единый файл `element.db` с префиксами записей (`user:`, `project:`, `element:`)
-- **Две версии**: `src_v2/` — с авторизацией, `gitverse/src/` — публичная без auth
+- **Три версии**: `src_v2/` — с авторизацией (dev), `gitverse/src/` — публичная без auth, `linux/src/` — ELF под Linux
 
 ### Frontend (JS)
 
@@ -291,6 +313,11 @@ build           # dev (src_v2/ → output/server.exe)
 build_pub       # public (gitverse/src/ → output/server_public.exe)
 ```
 
+**Linux:**
+```bash
+cd linux && make   # ELF-бинарник element_linux
+```
+
 ### Команды
 
 ```batch
@@ -305,6 +332,11 @@ status
 
 # Остановка
 stop
+```
+
+**Linux:**
+```bash
+cd linux && make && ./element_linux   # собрать и запустить
 ```
 
 ## 📋 Функционал
@@ -351,6 +383,7 @@ stop
 - [ ] Темы оформления
 - [ ] Плагины / кастомные элементы через API
 - [ ] WebSocket для real-time коллаборации
+- [x] Портирование на Linux (ELF, syscalls)
 
 ## 📸 Скриншоты
 
@@ -383,10 +416,11 @@ MIT License — см. файл [LICENSE](LICENSE) для деталей.
 
 - FASM — Flat Assembler
 - Win32 API — Microsoft
+- Linux kernel — Linus Torvalds
 - HTML5/CSS3/JS — W3C
 
 ---
 
 **Version:** 2.0.0  
-**Last Updated:** 2026-06-09  
+**Last Updated:** 2026-06-12  
 **Status:** Stable Release
